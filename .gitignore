@@ -1,0 +1,7 @@
+# .gitignore
+log/
+rl_model/
+game_state
+
+# ignore virtual environment
+.venv/
