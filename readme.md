@@ -42,6 +42,11 @@ python -m rl.train
 ```
 - Configure hyperparameters and environment selection inside RL/train.py.
 
+you can use the tensorboard to check the training process
+```bash
+tensorboard --logdir=./log
+```
+
 ### Test
 ```bash
 python -m rl.test

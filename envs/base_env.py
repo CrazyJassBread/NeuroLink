@@ -10,7 +10,6 @@ import torch
 import torch.nn.functional as F
 
 # train config
-TOTAL_STEPS = 3000000
 MAX_STEPS = 1000
 
 # rom file address
@@ -40,8 +39,8 @@ class BaseEnv(gym.Env, ABC):
 
         window_mode = "SDL2" if render_mode == "human" else "null"
         self.pyboy = PyBoy(game_file, sound_emulated=False, window=window_mode)
-        if window_mode == "SDL2":
-            self.pyboy.set_emulation_speed(1) # set the emulation speed to normal for human rendering
+        # if window_mode == "SDL2":
+        #     self.pyboy.set_emulation_speed(1) # set the emulation speed to normal for human rendering
 
         try:
             with open(save_file, "rb") as f:
