@@ -5,3 +5,6 @@ game_state
 
 # ignore virtual environment
 .venv/
+
+# ignore Python cache
+__pycache__/
