@@ -7,4 +7,4 @@ game_state
 .venv/
 
 # ignore Python cache
-__pycache__/
+**/__pycache__/
