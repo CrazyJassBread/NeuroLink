@@ -1,10 +1,8 @@
-# .gitignore
-log/
 rl_model/
-game_state
-
-# ignore virtual environment
+log/
 .venv/
+__pycache__/
+*.pyc
 
-# ignore Python cache
-**/__pycache__/
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
