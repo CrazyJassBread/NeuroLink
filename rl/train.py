@@ -1,46 +1,26 @@
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
 from stable_baselines3.common.monitor import Monitor
-import torch.nn as nn
-import torch
+from gymnasium.wrappers import TimeLimit
 
-from envs import Room58_Task_Env as Zelda_Env
-# from .PPO.model import CustomResNet, CustomACPolicy, CustomPPO
+from envs import ObservationConfig, Room58_Task_Env as Zelda_Env
 
 TOTAL_STEPS = 30000
+USE_TIME_LIMIT = False
 
 save_state = "game_state/Room58_task1.state"
 game_file = "game_state/Link's awakening.gb"
 
-env = Zelda_Env(game_file=game_file, save_file=save_state)
-env = Monitor(env)
+obs_cfg = ObservationConfig(
+    mode="bucketed",
+    output_shape=(8, 10),
+    grayscale=True,
+    normalize=False,
+)
 
-# policy_kwargs = {
-#     "features_extractor_class": CustomResNet,
-#     "features_extractor_kwargs": {"features_dim": 1024},
-#     "activation_fn": nn.ReLU,
-#     "net_arch": [],
-#     "optimizer_class": torch.optim.Adam,
-#     "optimizer_kwargs": {"eps": 1e-5}
-# }
-# model = CustomPPO(
-#     CustomACPolicy,
-#     env,
-#     policy_kwargs=policy_kwargs,
-#     learning_rate=3e-4,
-#     n_steps=4096,
-#     batch_size=512,
-#     n_epochs=3,
-#     gamma=0.95,
-#     gae_lambda=0.65,
-#     clip_range=0.2,
-#     ent_coef=0.01,
-#     vf_coef=0.5,
-#     max_grad_norm=0.5,
-#     verbose=1,
-#     normalize_advantage=False,
-#     tensorboard_log="./log/Room58/ppo_tensorboard/"
-# )
+env = Zelda_Env(game_file=game_file, save_file=save_state, observation_config=obs_cfg)
+if USE_TIME_LIMIT:
+    env = TimeLimit(env, max_episode_steps=1000)
+env = Monitor(env)
 
 model = PPO(
     "MlpPolicy",

@@ -2,6 +2,7 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 import time
 
+from envs import ObservationConfig
 from envs.env58_02 import Room58_Task2_Env as Zelda_Env
 
 MODEL_PATH = "RL/RL_model/ppo58_task2_final.zip"
@@ -9,7 +10,20 @@ SAVE_STATE = "game_state/Room58_task2.state"
 GAME_FILE = "game_state/Link's awakening.gb"
 MAX_FRAMES = 5000
 
-env = Zelda_Env(game_file=GAME_FILE, save_file=SAVE_STATE, render_mode="human", goal_room=58)
+obs_cfg = ObservationConfig(
+    mode="bucketed",
+    output_shape=(8, 10),
+    grayscale=True,
+    normalize=False,
+)
+
+env = Zelda_Env(
+    game_file=GAME_FILE,
+    save_file=SAVE_STATE,
+    render_mode="human",
+    goal_room=58,
+    observation_config=obs_cfg,
+)
 obs, _ = env.reset()
 
 model = PPO.load(MODEL_PATH)

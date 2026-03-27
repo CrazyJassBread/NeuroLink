@@ -1,6 +1,12 @@
 from stable_baselines3.common.env_checker import check_env
 import os
+import sys
 import matplotlib.pyplot as plt
+
+# Ensure local project modules resolve before similarly named site-packages.
+PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from envs import Room58_Task_Env
 

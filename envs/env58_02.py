@@ -1,11 +1,26 @@
 from __future__ import annotations
-from typing import Tuple
-import numpy as np
-from .base_env import BaseEnv
+from .base_env import ZeldaEnv
+from .reward import estimate_room58_turtles
 
-class Room58_Task2_Env(BaseEnv):
-    def __init__(self, game_file: str, save_file: str, render_mode: str | None = None, goal_room: int | None = 58):
-        super().__init__(game_file, save_file, goal_room=goal_room, render_mode=render_mode)
+class Room58_Task2_Env(ZeldaEnv):
+    def __init__(
+        self,
+        game_file: str,
+        save_file: str,
+        render_mode: str | None = None,
+        goal_room: int | None = 58,
+        **kwargs,
+    ):
+        super().__init__(
+            game_file,
+            save_file,
+            goal_room=goal_room,
+            render_mode=render_mode,
+            **kwargs,
+        )
+        self.turtles = self._get_monsters()
+
+    def _reset_extra(self, options=None):
         self.turtles = self._get_monsters()
 
     def check_goal(self) -> bool:
@@ -15,7 +30,7 @@ class Room58_Task2_Env(BaseEnv):
         else:
             return self.turtles == 0
 
-    def calculate_reward(self) -> Tuple[float, bool]:
+    def calculate_reward(self) -> tuple[float, bool]:
         reward = 0.0
         terminated = False
         _, y = self._get_pos()
@@ -42,13 +57,7 @@ class Room58_Task2_Env(BaseEnv):
         return reward, terminated
 
     def _get_monsters(self):
-        game_area = self.pyboy.game_area()
-        sub_area = game_area[:20, :20]
-        thresholds = [85, 170]
-        labels = np.digitize(sub_area, thresholds)
-        count_0 = np.count_nonzero(labels == 0)
-        turtles = (count_0 - 1) // 4
-        return turtles
+        return estimate_room58_turtles(self.emulator.game_area())
 
     def _monster_kill_bonus(self) -> float:
         cur_turtles = self._get_monsters()
