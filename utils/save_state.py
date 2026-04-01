@@ -1,11 +1,12 @@
 # ...existing code...
+from matplotlib.pylab import rint
 from pyboy import PyBoy
 from pynput import keyboard
 import time
 
 pyboy = PyBoy("game_state/Link's awakening.gb")
 load_state = "game_state/Room_58.state"
-save_state = "game_state/Room58_task2.state"
+save_state = "game_state/Room58_task.state"
 
 try:
     with open(load_state, "rb") as f:
@@ -48,9 +49,12 @@ try:
             break
         pyboy.tick()
         if i % 100 == 0:
-            link = pyboy.get_sprite(2)
-            print(f"Link Position: x={link.x}, y={link.y}")
-            print(f"current room: {pyboy.memory[0xDBAE]}")
+            print(f"Tick: {i}")
+            print(f"test memory DB14 {pyboy.memory[0xDB14]}")
+            print(f"test memory DB13 {pyboy.memory[0xDB13]}")
+            print(f"test memory DB15 {pyboy.memory[0xDB15]}")
+            # print(f"test memory DB25 {pyboy.memory[0xDB25]}")
+            # print(f"test memory DB27 {pyboy.memory[0xDB27]}")
         time.sleep(0.01)
 finally:
     listener.stop()

@@ -34,6 +34,9 @@ class EmulatorController:
     def tick(self, steps: int = 1) -> None:
         self.pyboy.tick(steps)
 
+    def send_input(self, event: int) -> None:
+        self.pyboy.send_input(event)
+
     def send_press_release(
         self,
         press_event: int,

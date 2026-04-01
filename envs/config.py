@@ -53,8 +53,8 @@ class ObservationConfig:
     normalize: bool = False
     gaussian_size: int = 16
     gaussian_sigma: float = 4.0
-    bucket_boundaries: Sequence[float] = field(default_factory=lambda: [30, 90, 190])
-    bucket_mapping: Sequence[int] = field(default_factory=lambda: [0, 1, 2, 3])
+    bucket_boundaries: Sequence[float] = field(default_factory=lambda: list(range(10, 256, 10)))
+    bucket_mapping: Sequence[int] = field(default_factory=lambda: list(range(26)))
 
 
 @dataclass

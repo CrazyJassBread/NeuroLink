@@ -52,6 +52,11 @@ class ObservationProcessor:
             return self._process_resized(screen)
         raise ValueError(f"Unsupported observation mode: {self.config.mode}")
 
+    def process_bucketed_prebucket(self, screen: np.ndarray) -> np.ndarray:
+        if self.config.mode != "bucketed":
+            raise ValueError("process_bucketed_prebucket is only available in bucketed mode")
+        return self._pooled_bucket_input(screen).cpu().numpy().astype(np.float32)
+
     def _build_gaussian_kernel(self, size: int, sigma: float) -> torch.Tensor:
         ax = np.arange(-size // 2 + 1.0, size // 2 + 1.0)
         xx, yy = np.meshgrid(ax, ax)
@@ -61,6 +66,13 @@ class ObservationProcessor:
         return torch.from_numpy(kernel)
 
     def _process_bucketed(self, screen: np.ndarray) -> np.ndarray:
+        pooled = self._pooled_bucket_input(screen)
+
+        indices = torch.bucketize(pooled, self.bucket_boundaries)
+        mapped = self.bucket_mapping[indices]
+        return mapped.cpu().numpy()
+
+    def _pooled_bucket_input(self, screen: np.ndarray) -> torch.Tensor:
         raw_screen = screen[:128, :160, 0]
         screen_tensor = torch.from_numpy(raw_screen).to(
             self.device, dtype=torch.float32
@@ -73,10 +85,7 @@ class ObservationProcessor:
             padding=0,
         ).squeeze(0).squeeze(0)
         pooled = pooled.clamp_(0, 255)
-
-        indices = torch.bucketize(pooled, self.bucket_boundaries)
-        mapped = self.bucket_mapping[indices]
-        return mapped.cpu().numpy()
+        return pooled
 
     def _process_resized(self, screen: np.ndarray) -> np.ndarray:
         h, w = self.config.output_shape
