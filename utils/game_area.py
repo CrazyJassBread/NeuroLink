@@ -12,13 +12,13 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from envs.config import ObservationConfig, resolve_device
-from envs.emulator import EmulatorController
-from envs.observation import ObservationProcessor
+from orgin_env.config import ObservationConfig, resolve_device
+from orgin_env.emulator import EmulatorController
+from orgin_env.observation import ObservationProcessor
 
 
-GAME_FILE = "game_state/Link's awakening.gb"
-SAVE_STATE = "game_state/Room_51.state"
+GAME_FILE = "asserts/game_state/Link's awakening.gb"
+SAVE_STATE = "asserts/game_state/Room_51.state"
 MAX_FRAMES = 100000
 
 # Rendering every frame with matplotlib is expensive and can stall the emulator.

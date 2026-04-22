@@ -2,8 +2,8 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 import time
 
-from envs import ObservationConfig
-from envs.env58_02 import Room58_Task2_Env as Zelda_Env
+from orgin_env import ObservationConfig
+from orgin_env.env58_02 import Room58_Task2_Env as Zelda_Env
 
 MODEL_PATH = "RL/RL_model/ppo58_task2_final.zip"
 SAVE_STATE = "game_state/Room58_task2.state"

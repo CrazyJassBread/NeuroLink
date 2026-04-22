@@ -1,0 +1,36 @@
+{
+  "start_room": [0, 0],
+  "rooms": {
+    "0,0": {
+      "player_spawn": [1, 1],
+      "walls": [[3, 3], [3, 4], [3, 5], [5, 1], [5, 2], [6, 6]],
+      "chests": [{"grid": [4, 2]}],
+      "npcs": [{"grid": [1, 7], "text": "Press Z to talk. X is reserved for skill B."}],
+      "monsters": [{"type": "chaser", "grid": [6, 8]}]
+    },
+    "1,0": {
+      "player_spawn": [1, 1],
+      "walls": [[2, 2], [2, 3], [2, 4], [4, 5], [5, 5]],
+      "chests": [{"grid": [6, 1]}],
+      "npcs": [{"grid": [1, 8], "text": "Ambushers wake up when you get close."}],
+      "monsters": [{"type": "ambusher", "grid": [6, 6], "ambush_range": 2}]
+    },
+    "0,1": {
+      "player_spawn": [1, 1],
+      "walls": [[1, 4], [2, 4], [3, 4], [4, 4], [5, 4], [6, 4]],
+      "chests": [{"grid": [7, 8]}],
+      "npcs": [{"grid": [2, 1], "text": "Patrollers run a square path in pixel-space."}],
+      "monsters": [{"type": "patroller", "grid": [5, 6], "patrol_span": 48}]
+    },
+    "-1,0": {
+      "player_spawn": [6, 1],
+      "walls": [[1, 2], [2, 2], [5, 6], [5, 7], [4, 7]],
+      "chests": [{"grid": [2, 8]}],
+      "npcs": [{"grid": [6, 8], "text": "Room coordinates can extend in all directions."}],
+      "monsters": [
+        {"type": "chaser", "grid": [2, 5]},
+        {"type": "ambusher", "grid": [6, 4], "ambush_range": 3}
+      ]
+    }
+  }
+}
