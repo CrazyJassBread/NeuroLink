@@ -8,12 +8,14 @@ from .game import ZeldaLikeGame
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Dual-resolution Zelda-style pygame prototype")
-    default_room_file = Path(__file__).resolve().parent / "room_data" / "rooms.json"
+    default_room_file = (
+        Path(__file__).resolve().parent / "map_data" / "dungeons" / "prototype" / "dungeon.json"
+    )
     parser.add_argument(
         "--rooms",
         type=str,
         default=str(default_room_file),
-        help="Path to room definition JSON",
+        help="Path to dungeon definition JSON",
     )
     args = parser.parse_args()
 

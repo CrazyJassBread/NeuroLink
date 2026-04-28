@@ -1,0 +1,62 @@
+{
+  "id": "room_-1_0",
+  "coord": [-1, 0],
+  "layout": [
+    "..........",
+    "..........",
+    ".##.......",
+    "..........",
+    "..........",
+    ".....#....",
+    "....##....",
+    ".........."
+  ],
+  "spawns": {
+    "default": [8, 4],
+    "from_east": [8, 4]
+  },
+  "objects": [
+    {
+      "id": "chest_1",
+      "kind": "chest",
+      "pos": [2, 6],
+      "loot": {
+        "kind": "gold",
+        "amount": 5
+      }
+    },
+    {
+      "id": "npc_1",
+      "kind": "npc",
+      "pos": [7, 6],
+      "text": "The west room has no locked exits."
+    },
+    {
+      "id": "monster_1",
+      "kind": "monster",
+      "pos": [2, 4],
+      "monster_type": "chaser",
+      "hp": 2,
+      "damage": 1
+    },
+    {
+      "id": "monster_2",
+      "kind": "monster",
+      "pos": [6, 3],
+      "monster_type": "ambusher",
+      "ambush_range": 3,
+      "hp": 2,
+      "damage": 1
+    }
+  ],
+  "transitions": [
+    {
+      "id": "east_exit",
+      "direction": "right",
+      "pos": [9, 4],
+      "target_room": "room_0_0",
+      "target_spawn": "from_west",
+      "success_message": "START ROOM"
+    }
+  ]
+}

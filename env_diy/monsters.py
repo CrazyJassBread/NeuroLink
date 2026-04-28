@@ -1,172 +1,147 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 
-import pygame
-
-from .constants import (
-    COLOR_AMBUSHER,
-    COLOR_CHASER,
-    COLOR_PATROLLER,
-    INTERNAL_HEIGHT,
-    INTERNAL_WIDTH,
-    MONSTER_BASE_SPEED,
-    MONSTER_SIZE,
-    TILE_SIZE,
+from .constants import GRID_HEIGHT, GRID_WIDTH, MONSTER_SIZE_PX, MONSTER_SPEED_PX_PER_STEP
+from .entities import (
+    GridPos,
+    PixelPos,
+    move_with_tile_collisions,
+    tile_center_px,
+    tile_from_position_px,
+    tile_to_top_left_px,
 )
-from .entities import Entity, Player
-
-
-Bounds = tuple[float, float, float, float]
 
 
 @dataclass
-class MonsterSpawn:
-    kind: str
-    grid_x: int
-    grid_y: int
-    ambush_range: int = 2
-    patrol_span: int = 32
+class MonsterState:
+    monster_id: str
+    monster_type: str
+    position_px: PixelPos
+    size_px: int = MONSTER_SIZE_PX
+    speed_px_per_step: float = MONSTER_SPEED_PX_PER_STEP
+    hp: int = 1
+    damage: int = 1
+    ambush_range_tiles: int = 2
+    patrol_span_tiles: int = 1
+    activated: bool = False
+    patrol_points_px: list[PixelPos] = field(default_factory=list)
+    patrol_index: int = 0
+
+    @property
+    def tile_pos(self) -> GridPos:
+        return tile_from_position_px(self.position_px, self.size_px)
+
+    def current_patrol_target(self) -> PixelPos | None:
+        if not self.patrol_points_px:
+            return None
+        return self.patrol_points_px[self.patrol_index]
 
 
-class Monster(Entity):
-    def __init__(self, x: float, y: float, speed: float, color: tuple[int, int, int]):
-        super().__init__(x, y, size=MONSTER_SIZE)
-        self.speed = speed
-        self.color = color
-
-    def update(self, player: Player, dt: float, bounds: Bounds, wall_rects: list[pygame.Rect]) -> None:
-        raise NotImplementedError
-
-    def draw(self, surface: pygame.Surface) -> None:
-        pygame.draw.rect(surface, self.color, self.rect)
-
-    def _move(self, vx: float, vy: float, dt: float, bounds: Bounds, wall_rects: list[pygame.Rect]) -> None:
-        self._move_axis(vx * dt, 0.0, bounds, wall_rects)
-        self._move_axis(0.0, vy * dt, bounds, wall_rects)
-
-    def _move_axis(
-        self,
-        dx: float,
-        dy: float,
-        bounds: Bounds,
-        wall_rects: list[pygame.Rect],
-    ) -> None:
-        min_x, max_x, min_y, max_y = bounds
-        self.x += dx
-        self.y += dy
-
-        self.x = max(min_x, min(self.x, max_x))
-        self.y = max(min_y, min(self.y, max_y))
-
-        entity_rect = self.rect
-        for wall in wall_rects:
-            if not entity_rect.colliderect(wall):
-                continue
-            if dx > 0.0:
-                self.x = float(wall.left - self.size)
-            elif dx < 0.0:
-                self.x = float(wall.right)
-            elif dy > 0.0:
-                self.y = float(wall.top - self.size)
-            elif dy < 0.0:
-                self.y = float(wall.bottom)
-            entity_rect = self.rect
-
-    def _move_towards(
-        self,
-        target: tuple[float, float],
-        speed: float,
-        dt: float,
-        bounds: Bounds,
-        wall_rects: list[pygame.Rect],
-    ) -> None:
-        target_vec = pygame.Vector2(target)
-        own_vec = pygame.Vector2(self.center)
-        delta = target_vec - own_vec
-
-        if delta.length_squared() <= 1e-6:
-            return
-
-        delta.normalize_ip()
-        self._move(delta.x * speed, delta.y * speed, dt, bounds, wall_rects)
-
-    def cell(self) -> tuple[int, int]:
-        return int(self.center[0] // TILE_SIZE), int(self.center[1] // TILE_SIZE)
-
-
-class Chaser(Monster):
-    def __init__(self, x: float, y: float):
-        super().__init__(x, y, speed=MONSTER_BASE_SPEED, color=COLOR_CHASER)
-
-    def update(self, player: Player, dt: float, bounds: Bounds, wall_rects: list[pygame.Rect]) -> None:
-        self._move_towards(player.center, self.speed, dt, bounds, wall_rects)
-
-
-class Ambusher(Monster):
-    def __init__(self, x: float, y: float, ambush_range: int = 2):
-        super().__init__(x, y, speed=MONSTER_BASE_SPEED, color=COLOR_AMBUSHER)
-        self.ambush_range = ambush_range
-        self.activated = False
-
-    def update(self, player: Player, dt: float, bounds: Bounds, wall_rects: list[pygame.Rect]) -> None:
-        my_cx, my_cy = self.cell()
-        pl_cx = int(player.center[0] // TILE_SIZE)
-        pl_cy = int(player.center[1] // TILE_SIZE)
-
-        if abs(my_cx - pl_cx) <= self.ambush_range and abs(my_cy - pl_cy) <= self.ambush_range:
-            self.activated = True
-
-        if self.activated:
-            self._move_towards(player.center, self.speed * 2.0, dt, bounds, wall_rects)
-
-
-class Patroller(Monster):
-    def __init__(self, x: float, y: float, patrol_span: int = 32):
-        super().__init__(x, y, speed=MONSTER_BASE_SPEED * 0.9, color=COLOR_PATROLLER)
-        self.spawn_x = x
-        self.spawn_y = y
-        self.patrol_span = float(max(TILE_SIZE, patrol_span))
-        self.waypoint_index = 0
-        self.waypoints = self._build_waypoints()
-
-    def _build_waypoints(self) -> list[tuple[float, float]]:
-        max_x = float(INTERNAL_WIDTH - MONSTER_SIZE)
-        max_y = float(INTERNAL_HEIGHT - MONSTER_SIZE)
-        x0 = max(0.0, min(self.spawn_x, max_x))
-        y0 = max(0.0, min(self.spawn_y, max_y))
-        x1 = max(0.0, min(x0 + self.patrol_span, max_x))
-        y1 = max(0.0, min(y0 + self.patrol_span, max_y))
-        return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
-
-    def update(self, player: Player, dt: float, bounds: Bounds, wall_rects: list[pygame.Rect]) -> None:
-        target = pygame.Vector2(self.waypoints[self.waypoint_index])
-        own_pos = pygame.Vector2(self.x, self.y)
-        delta = target - own_pos
-
-        if delta.length() <= 1.0:
-            self.waypoint_index = (self.waypoint_index + 1) % len(self.waypoints)
-            return
-
-        delta.normalize_ip()
-        self._move(delta.x * self.speed, delta.y * self.speed, dt, bounds, wall_rects)
-
-
-def build_monster_from_dict(data: dict) -> Monster:
-    kind = str(data.get("type", "chaser")).lower()
+def build_monster_from_dict(data: dict) -> MonsterState:
+    monster_type = str(data.get("monster_type", data.get("type", "chaser"))).lower()
     grid = data.get("grid", [0, 0])
-    grid_x = int(grid[0])
-    grid_y = int(grid[1])
+    spawn_tile = (int(grid[0]), int(grid[1]))
+    position_px = tile_to_top_left_px(spawn_tile)
 
-    x = float(grid_x * TILE_SIZE)
-    y = float(grid_y * TILE_SIZE)
+    patrol_span_tiles = max(1, int(data.get("patrol_span", 16)) // 16)
+    monster = MonsterState(
+        monster_id=str(data.get("id", "")),
+        monster_type=monster_type,
+        position_px=position_px,
+        size_px=max(1, int(data.get("size_px", MONSTER_SIZE_PX))),
+        speed_px_per_step=float(data.get("speed_px_per_step", MONSTER_SPEED_PX_PER_STEP)),
+        hp=max(1, int(data.get("hp", 1))),
+        damage=max(1, int(data.get("damage", 1))),
+        ambush_range_tiles=max(1, int(data.get("ambush_range", 2))),
+        patrol_span_tiles=patrol_span_tiles,
+    )
 
-    if kind == "ambusher":
-        ambush_range = int(data.get("ambush_range", 2))
-        return Ambusher(x, y, ambush_range=ambush_range)
+    if monster_type == "patroller":
+        monster.patrol_points_px = _build_patrol_points_px(spawn_tile, patrol_span_tiles)
+    return monster
 
-    if kind == "patroller":
-        patrol_span = int(data.get("patrol_span", 32))
-        return Patroller(x, y, patrol_span=patrol_span)
 
-    return Chaser(x, y)
+def update_monster(
+    monster: MonsterState,
+    player_position_px: PixelPos,
+    wall_tiles: set[GridPos],
+    blocking_tiles: set[GridPos],
+) -> None:
+    if monster.monster_type == "ambusher":
+        if _within_range(monster.tile_pos, tile_from_position_px(player_position_px), monster.ambush_range_tiles):
+            monster.activated = True
+        if monster.activated:
+            _move_towards(monster, player_position_px, wall_tiles, blocking_tiles)
+        return
+
+    if monster.monster_type == "patroller":
+        _advance_patroller(monster, wall_tiles, blocking_tiles)
+        return
+
+    _move_towards(monster, player_position_px, wall_tiles, blocking_tiles)
+
+
+def _build_patrol_points_px(origin_tile: GridPos, patrol_span_tiles: int) -> list[PixelPos]:
+    x0, y0 = origin_tile
+    x1 = min(GRID_WIDTH - 1, x0 + patrol_span_tiles)
+    y1 = min(GRID_HEIGHT - 1, y0 + patrol_span_tiles)
+    return [
+        tile_to_top_left_px((x0, y0)),
+        tile_to_top_left_px((x1, y0)),
+        tile_to_top_left_px((x1, y1)),
+        tile_to_top_left_px((x0, y1)),
+    ]
+
+
+def _within_range(left: GridPos, right: GridPos, radius: int) -> bool:
+    return abs(left[0] - right[0]) <= radius and abs(left[1] - right[1]) <= radius
+
+
+def _advance_patroller(
+    monster: MonsterState,
+    wall_tiles: set[GridPos],
+    blocking_tiles: set[GridPos],
+) -> None:
+    target = monster.current_patrol_target()
+    if target is None:
+        return
+
+    if _distance(monster.position_px, target) <= monster.speed_px_per_step:
+        monster.position_px = target
+        monster.patrol_index = (monster.patrol_index + 1) % len(monster.patrol_points_px)
+        target = monster.current_patrol_target()
+        if target is None:
+            return
+
+    _move_towards(monster, target, wall_tiles, blocking_tiles)
+
+
+def _move_towards(
+    monster: MonsterState,
+    target_position_px: PixelPos,
+    wall_tiles: set[GridPos],
+    blocking_tiles: set[GridPos],
+) -> None:
+    target_x, target_y = target_position_px
+    dx = target_x - monster.position_px[0]
+    dy = target_y - monster.position_px[1]
+    distance = math.hypot(dx, dy)
+    if distance <= 1e-6:
+        return
+
+    step_x = (dx / distance) * monster.speed_px_per_step
+    step_y = (dy / distance) * monster.speed_px_per_step
+    world_blockers = set(wall_tiles) | set(blocking_tiles)
+    world_blockers.discard(monster.tile_pos)
+    monster.position_px = move_with_tile_collisions(
+        monster.position_px,
+        monster.size_px,
+        (step_x, step_y),
+        world_blockers,
+    )
+
+
+def _distance(left: PixelPos, right: PixelPos) -> float:
+    return math.hypot(left[0] - right[0], left[1] - right[1])

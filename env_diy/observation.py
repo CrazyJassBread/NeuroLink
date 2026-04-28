@@ -2,38 +2,51 @@ from __future__ import annotations
 
 import numpy as np
 
-from .constants import GRID_HEIGHT, GRID_WIDTH, TILE_SIZE
-from .entities import Player
-from .room import RoomDefinition
+from .constants import GRID_HEIGHT, GRID_WIDTH
+from .entities import PlayerState, tile_from_position_px
+from .room import RoomState
 
 
-def _pixel_to_grid(center_x: float, center_y: float) -> tuple[int, int]:
-    gx = int(center_x // TILE_SIZE)
-    gy = int(center_y // TILE_SIZE)
-    gx = max(0, min(GRID_WIDTH - 1, gx))
-    gy = max(0, min(GRID_HEIGHT - 1, gy))
-    return gx, gy
+TILE_EMPTY = 0
+TILE_WALL = 1
+TILE_PLAYER = 2
+TILE_MONSTER = 3
+TILE_CHEST = 4
+TILE_EXIT = 5
+TILE_TRAP = 6
+TILE_BUTTON = 7
+TILE_NPC = 8
 
 
-def downsampled_observation(room: RoomDefinition, player: Player) -> np.ndarray:
-    """Build an 8x10 semantic matrix from the 128x160 pixel space.
+def room_observation(room: RoomState, player: PlayerState) -> np.ndarray:
+    """Build a stable 8x10 semantic grid in row-major order."""
 
-    Matrix axis order is [x, y], so shape is (8, 10).
-    Semantic values:
-      0 empty, 1 wall, 2 player, 3 monster
-    """
+    observation = np.zeros((GRID_HEIGHT, GRID_WIDTH), dtype=np.uint8)
 
-    observation = np.zeros((GRID_WIDTH, GRID_HEIGHT), dtype=np.uint8)
+    for col, row in room.walls:
+        observation[row, col] = TILE_WALL
 
-    for gx, gy in room.walls:
-        if 0 <= gx < GRID_WIDTH and 0 <= gy < GRID_HEIGHT:
-            observation[gx, gy] = 1
+    for chest in room.chests.values():
+        if not chest.is_open:
+            observation[chest.pos[1], chest.pos[0]] = TILE_CHEST
 
-    for monster in room.monsters:
-        gx, gy = _pixel_to_grid(*monster.center)
-        observation[gx, gy] = 3
+    for npc in room.npcs.values():
+        observation[npc.pos[1], npc.pos[0]] = TILE_NPC
 
-    player_gx, player_gy = _pixel_to_grid(*player.center)
-    observation[player_gx, player_gy] = 2
+    for trap in room.traps.values():
+        if trap.is_active:
+            observation[trap.pos[1], trap.pos[0]] = TILE_TRAP
 
+    for button in room.buttons.values():
+        observation[button.pos[1], button.pos[0]] = TILE_BUTTON
+
+    for transition in room.transitions:
+        observation[transition.pos[1], transition.pos[0]] = TILE_EXIT
+
+    for monster in room.monsters.values():
+        monster_tile = monster.tile_pos
+        observation[monster_tile[1], monster_tile[0]] = TILE_MONSTER
+
+    player_tile = tile_from_position_px(player.position_px, player.size_px)
+    observation[player_tile[1], player_tile[0]] = TILE_PLAYER
     return observation

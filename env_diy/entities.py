@@ -1,176 +1,204 @@
 from __future__ import annotations
 
 import math
-
-import pygame
+from dataclasses import dataclass, field
+from typing import Any
 
 from .constants import (
-    CHEST_INTERACT_RADIUS,
-    COLOR_CHEST,
-    COLOR_CHEST_OPEN,
-    COLOR_NPC,
-    COLOR_PLAYER,
-    FACING_DOT_THRESHOLD,
-    IFRAMES_SECONDS,
-    NPC_INTERACT_RADIUS,
+    ENTITY_SIZE_PX,
+    ITEM_NAME_TO_ID,
+    MAP_PIXEL_HEIGHT,
+    MAP_PIXEL_WIDTH,
+    PLAYER_GOLD_DEFAULT,
     PLAYER_HP_DEFAULT,
-    PLAYER_SIZE,
-    PLAYER_SPEED,
+    PLAYER_KEYS_DEFAULT,
+    PLAYER_SPEED_PX_PER_STEP,
     TILE_SIZE,
 )
 
 
-def clamp(value: float, lower: float, upper: float) -> float:
+GridPos = tuple[int, int]
+PixelPos = tuple[float, float]
+
+
+@dataclass
+class PlayerState:
+    position_px: PixelPos
+    size_px: int = ENTITY_SIZE_PX
+    speed_px_per_step: float = PLAYER_SPEED_PX_PER_STEP
+    health: int = PLAYER_HP_DEFAULT
+    max_health: int = PLAYER_HP_DEFAULT
+    gold: int = PLAYER_GOLD_DEFAULT
+    keys: int = PLAYER_KEYS_DEFAULT
+    items: list[str] = field(default_factory=lambda: ["sword", "shield"])
+    action_a_label: str = "INTERACT"
+    action_b_label: str = "DEFEND"
+
+
+@dataclass
+class ChestState:
+    chest_id: str
+    pos: GridPos
+    loot: dict[str, Any]
+    is_open: bool = False
+
+
+@dataclass
+class NPCState:
+    npc_id: str
+    pos: GridPos
+    text: str
+
+
+@dataclass
+class TrapState:
+    trap_id: str
+    pos: GridPos
+    damage: int = 1
+    respawn_to: str = "default"
+    single_use: bool = False
+    is_active: bool = True
+
+
+@dataclass
+class ButtonState:
+    button_id: str
+    pos: GridPos
+    message: str = "BUTTON"
+    is_pressed: bool = False
+
+
+def inventory_item_codes(items: list[str], size: int = 2) -> list[int]:
+    codes = [ITEM_NAME_TO_ID.get(item, 0) for item in items[:size]]
+    if len(codes) < size:
+        codes.extend([0] * (size - len(codes)))
+    return codes
+
+
+def manhattan_distance(left: GridPos, right: GridPos) -> int:
+    return abs(left[0] - right[0]) + abs(left[1] - right[1])
+
+
+def is_adjacent(left: GridPos, right: GridPos) -> bool:
+    return manhattan_distance(left, right) <= 1
+
+
+def entity_rect(position_px: PixelPos, size_px: int = ENTITY_SIZE_PX) -> tuple[float, float, float, float]:
+    left = float(position_px[0])
+    top = float(position_px[1])
+    return left, top, left + float(size_px), top + float(size_px)
+
+
+def entity_center_px(position_px: PixelPos, size_px: int = ENTITY_SIZE_PX) -> tuple[float, float]:
+    return position_px[0] + size_px * 0.5, position_px[1] + size_px * 0.5
+
+
+def tile_from_position_px(position_px: PixelPos, size_px: int = ENTITY_SIZE_PX) -> GridPos:
+    center_x, center_y = entity_center_px(position_px, size_px)
+    tile_x = int(center_x // TILE_SIZE)
+    tile_y = int(center_y // TILE_SIZE)
+    return tile_x, tile_y
+
+
+def tile_to_top_left_px(tile_pos: GridPos) -> PixelPos:
+    return float(tile_pos[0] * TILE_SIZE), float(tile_pos[1] * TILE_SIZE)
+
+
+def tile_center_px(tile_pos: GridPos) -> tuple[float, float]:
+    return tile_pos[0] * TILE_SIZE + TILE_SIZE * 0.5, tile_pos[1] * TILE_SIZE + TILE_SIZE * 0.5
+
+
+def aabb_overlap(
+    left_pos: PixelPos,
+    left_size: int,
+    right_pos: PixelPos,
+    right_size: int,
+) -> bool:
+    left_l, left_t, left_r, left_b = entity_rect(left_pos, left_size)
+    right_l, right_t, right_r, right_b = entity_rect(right_pos, right_size)
+    return not (
+        left_r <= right_l
+        or left_l >= right_r
+        or left_b <= right_t
+        or left_t >= right_b
+    )
+
+
+def move_with_tile_collisions(
+    position_px: PixelPos,
+    size_px: int,
+    velocity_px: tuple[float, float],
+    blocking_tiles: set[GridPos],
+) -> PixelPos:
+    next_x = _move_axis(
+        position_px=position_px,
+        size_px=size_px,
+        delta=velocity_px[0],
+        blocking_tiles=blocking_tiles,
+        axis="x",
+    )
+    next_y = _move_axis(
+        position_px=(next_x, position_px[1]),
+        size_px=size_px,
+        delta=velocity_px[1],
+        blocking_tiles=blocking_tiles,
+        axis="y",
+    )
+    return next_x, next_y
+
+
+def _move_axis(
+    position_px: PixelPos,
+    size_px: int,
+    delta: float,
+    blocking_tiles: set[GridPos],
+    axis: str,
+) -> float:
+    if axis == "x":
+        candidate = _clamp(position_px[0] + delta, 0.0, MAP_PIXEL_WIDTH - size_px)
+        rect = (candidate, position_px[1], candidate + size_px, position_px[1] + size_px)
+    else:
+        candidate = _clamp(position_px[1] + delta, 0.0, MAP_PIXEL_HEIGHT - size_px)
+        rect = (position_px[0], candidate, position_px[0] + size_px, candidate + size_px)
+
+    collision_tiles = overlapping_tiles(rect)
+    for tile in collision_tiles:
+        if tile not in blocking_tiles:
+            continue
+        tile_left = float(tile[0] * TILE_SIZE)
+        tile_top = float(tile[1] * TILE_SIZE)
+        tile_right = tile_left + TILE_SIZE
+        tile_bottom = tile_top + TILE_SIZE
+        if axis == "x":
+            if delta > 0:
+                candidate = min(candidate, tile_left - size_px)
+            elif delta < 0:
+                candidate = max(candidate, tile_right)
+            rect = (candidate, position_px[1], candidate + size_px, position_px[1] + size_px)
+        else:
+            if delta > 0:
+                candidate = min(candidate, tile_top - size_px)
+            elif delta < 0:
+                candidate = max(candidate, tile_bottom)
+            rect = (position_px[0], candidate, position_px[0] + size_px, candidate + size_px)
+
+    return _clamp(candidate, 0.0, MAP_PIXEL_WIDTH - size_px if axis == "x" else MAP_PIXEL_HEIGHT - size_px)
+
+
+def overlapping_tiles(rect: tuple[float, float, float, float]) -> set[GridPos]:
+    left, top, right, bottom = rect
+    epsilon = 1e-6
+    min_tile_x = max(0, int(math.floor(left / TILE_SIZE)))
+    max_tile_x = min(int(math.floor((right - epsilon) / TILE_SIZE)), (MAP_PIXEL_WIDTH // TILE_SIZE) - 1)
+    min_tile_y = max(0, int(math.floor(top / TILE_SIZE)))
+    max_tile_y = min(int(math.floor((bottom - epsilon) / TILE_SIZE)), (MAP_PIXEL_HEIGHT // TILE_SIZE) - 1)
+
+    tiles: set[GridPos] = set()
+    for tile_y in range(min_tile_y, max_tile_y + 1):
+        for tile_x in range(min_tile_x, max_tile_x + 1):
+            tiles.add((tile_x, tile_y))
+    return tiles
+
+
+def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(value, upper))
-
-
-class Entity:
-    def __init__(self, x: float, y: float, size: int = PLAYER_SIZE):
-        self.x = float(x)
-        self.y = float(y)
-        self.size = int(size)
-
-    @property
-    def rect(self) -> pygame.Rect:
-        return pygame.Rect(int(round(self.x)), int(round(self.y)), self.size, self.size)
-
-    @property
-    def center(self) -> tuple[float, float]:
-        return self.x + self.size * 0.5, self.y + self.size * 0.5
-
-    def distance_to(self, other: "Entity") -> float:
-        sx, sy = self.center
-        ox, oy = other.center
-        return math.hypot(sx - ox, sy - oy)
-
-
-class Player(Entity):
-    def __init__(self, x: float, y: float):
-        super().__init__(x, y, size=PLAYER_SIZE)
-        self.hp = PLAYER_HP_DEFAULT
-        self.speed = PLAYER_SPEED
-        self.facing = pygame.Vector2(0.0, 1.0)
-        self.invincibility_timer = 0.0
-
-    def update_movement(
-        self,
-        direction: pygame.Vector2,
-        dt: float,
-        wall_rects: list[pygame.Rect],
-    ) -> None:
-        if direction.length_squared() > 0.0:
-            direction = direction.normalize()
-            self.facing = direction
-
-        dx = direction.x * self.speed * dt
-        dy = direction.y * self.speed * dt
-
-        self._move_axis(dx, 0.0, wall_rects)
-        self._move_axis(0.0, dy, wall_rects)
-
-    def _move_axis(self, dx: float, dy: float, wall_rects: list[pygame.Rect]) -> None:
-        self.x += dx
-        self.y += dy
-
-        entity_rect = self.rect
-        for wall in wall_rects:
-            if not entity_rect.colliderect(wall):
-                continue
-            if dx > 0.0:
-                self.x = float(wall.left - self.size)
-            elif dx < 0.0:
-                self.x = float(wall.right)
-            elif dy > 0.0:
-                self.y = float(wall.top - self.size)
-            elif dy < 0.0:
-                self.y = float(wall.bottom)
-            entity_rect = self.rect
-
-    def update_timers(self, dt: float) -> None:
-        self.invincibility_timer = max(0.0, self.invincibility_timer - dt)
-
-    def take_damage(self, amount: int = 1, iframes_seconds: float = IFRAMES_SECONDS) -> bool:
-        if self.invincibility_timer > 0.0:
-            return False
-
-        self.hp = max(0, self.hp - amount)
-        self.invincibility_timer = iframes_seconds
-        return True
-
-    def can_render(self) -> bool:
-        if self.invincibility_timer <= 0.0:
-            return True
-        return int(self.invincibility_timer * 12.0) % 2 == 0
-
-    def draw(self, surface: pygame.Surface) -> None:
-        if self.can_render():
-            pygame.draw.rect(surface, COLOR_PLAYER, self.rect)
-
-
-class Interactable(Entity):
-    """Interactables are anchored to 16x16 grid centers."""
-
-    def __init__(self, grid_x: int, grid_y: int, size: int = TILE_SIZE):
-        top_left_x = float(grid_x * TILE_SIZE)
-        top_left_y = float(grid_y * TILE_SIZE)
-        super().__init__(top_left_x, top_left_y, size=size)
-        self.grid_x = int(grid_x)
-        self.grid_y = int(grid_y)
-
-    def _facing_player(self, player: Player) -> bool:
-        target = pygame.Vector2(self.center)
-        origin = pygame.Vector2(player.center)
-        to_target = target - origin
-        length = to_target.length()
-
-        if length <= 1e-6:
-            return True
-
-        to_target.normalize_ip()
-        facing = player.facing
-        if facing.length_squared() <= 1e-6:
-            facing = pygame.Vector2(0.0, 1.0)
-        return facing.dot(to_target) >= FACING_DOT_THRESHOLD
-
-    def _within_neighborhood(self, player: Player) -> bool:
-        pcx = int(player.center[0] // TILE_SIZE)
-        pcy = int(player.center[1] // TILE_SIZE)
-        return abs(pcx - self.grid_x) <= 1 and abs(pcy - self.grid_y) <= 1
-
-    def can_interact(self, player: Player, radius: float) -> bool:
-        near_enough = self.distance_to(player) <= radius
-        return near_enough and (self._facing_player(player) or self._within_neighborhood(player))
-
-
-class Chest(Interactable):
-    def __init__(self, grid_x: int, grid_y: int):
-        super().__init__(grid_x, grid_y)
-        self.is_open = False
-
-    def try_open(self, player: Player) -> bool:
-        if self.is_open:
-            return False
-        if not self.can_interact(player, CHEST_INTERACT_RADIUS):
-            return False
-
-        self.is_open = True
-        print("Item Found!")
-        return True
-
-    def draw(self, surface: pygame.Surface) -> None:
-        color = COLOR_CHEST_OPEN if self.is_open else COLOR_CHEST
-        pygame.draw.rect(surface, color, self.rect)
-
-
-class NPC(Interactable):
-    def __init__(self, grid_x: int, grid_y: int, text: str):
-        super().__init__(grid_x, grid_y)
-        self.text = text
-
-    def try_talk(self, player: Player) -> str | None:
-        if not self.can_interact(player, NPC_INTERACT_RADIUS):
-            return None
-        return self.text
-
-    def draw(self, surface: pygame.Surface) -> None:
-        pygame.draw.rect(surface, COLOR_NPC, self.rect)

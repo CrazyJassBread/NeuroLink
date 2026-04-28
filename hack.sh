@@ -14,11 +14,11 @@ fi
 case $FUNC in
     "hunt")
         echo "start chasing the memory ..."
-        python utils/hack_memory.py --state game_state/Room_51.state hunt --step-baseline
+        python orgin_zelda/utils/hack_memory.py --state game_state/Room_51.state hunt --step-baseline
         ;;
     "help")
         echo ""
-        python utils/hack_memory.py
+        python orgin_zelda/utils/hack_memory.py
         ;;
     *)
         # 如果输入的参数不在上述选项中

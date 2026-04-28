@@ -8,3 +8,5 @@ __pycache__/
 # Ignore the private api key file
 setup.md
 
+.pytest_cache/
+

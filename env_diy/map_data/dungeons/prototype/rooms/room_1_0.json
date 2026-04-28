@@ -1,0 +1,54 @@
+{
+  "id": "room_1_0",
+  "coord": [1, 0],
+  "layout": [
+    "..........",
+    "..........",
+    "..#.......",
+    "..#.......",
+    "..#..##...",
+    "..........",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [1, 4],
+    "from_west": [1, 4]
+  },
+  "objects": [
+    {
+      "id": "chest_1",
+      "kind": "chest",
+      "pos": [7, 1],
+      "loot": {
+        "kind": "heal",
+        "amount": 1
+      }
+    },
+    {
+      "id": "npc_1",
+      "kind": "npc",
+      "pos": [7, 6],
+      "text": "This room was behind the locked gate."
+    },
+    {
+      "id": "monster_1",
+      "kind": "monster",
+      "pos": [7, 5],
+      "monster_type": "ambusher",
+      "ambush_range": 2,
+      "hp": 2,
+      "damage": 1
+    }
+  ],
+  "transitions": [
+    {
+      "id": "west_exit",
+      "direction": "left",
+      "pos": [0, 4],
+      "target_room": "room_0_0",
+      "target_spawn": "from_east",
+      "success_message": "START ROOM"
+    }
+  ]
+}

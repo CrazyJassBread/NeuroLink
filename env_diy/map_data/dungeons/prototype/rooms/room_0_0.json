@@ -1,0 +1,74 @@
+{
+  "id": "room_0_0",
+  "coord": [0, 0],
+  "layout": [
+    "..........",
+    ".....#....",
+    ".....#....",
+    "...##.....",
+    "..........",
+    "......#...",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [1, 1],
+    "from_east": [1, 4],
+    "from_south": [4, 1],
+    "from_west": [8, 4]
+  },
+  "default_spawn": "default",
+  "objects": [
+    {
+      "id": "chest_1",
+      "kind": "chest",
+      "pos": [4, 2],
+      "loot": {
+        "kind": "gold",
+        "amount": 2
+      }
+    },
+    {
+      "id": "npc_1",
+      "kind": "npc",
+      "pos": [7, 6],
+      "text": "Find a key in the south room."
+    },
+    {
+      "id": "monster_1",
+      "kind": "monster",
+      "pos": [7, 4],
+      "monster_type": "chaser",
+      "hp": 2,
+      "damage": 1
+    }
+  ],
+  "transitions": [
+    {
+      "id": "east_exit",
+      "pos": [9, 4],
+      "direction": "right",
+      "target_room": "room_1_0",
+      "target_spawn": "from_west",
+      "requires_key": 1,
+      "locked_message": "NEED KEY",
+      "success_message": "EAST ROOM"
+    },
+    {
+      "id": "west_exit",
+      "pos": [0, 4],
+      "direction": "left",
+      "target_room": "room_-1_0",
+      "target_spawn": "from_east",
+      "success_message": "WEST ROOM"
+    },
+    {
+      "id": "south_exit",
+      "direction": "down",
+      "pos": [4, 7],
+      "target_room": "room_0_1",
+      "target_spawn": "from_north",
+      "success_message": "SOUTH ROOM"
+    }
+  ]
+}

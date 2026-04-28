@@ -2,7 +2,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from gymnasium.wrappers import TimeLimit
 
-from orgin_env import ObservationConfig, Room58_Task_Env as Zelda_Env
+from orgin_zelda.envs import ObservationConfig, Room58_Task_Env as Zelda_Env
 
 TOTAL_STEPS = 30000
 USE_TIME_LIMIT = False

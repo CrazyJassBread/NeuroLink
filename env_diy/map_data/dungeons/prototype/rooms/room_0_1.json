@@ -1,0 +1,61 @@
+{
+  "id": "room_0_1",
+  "coord": [0, 1],
+  "layout": [
+    "..........",
+    "..........",
+    "..######..",
+    "..........",
+    "..........",
+    "..........",
+    "....#.....",
+    ".........."
+  ],
+  "spawns": {
+    "default": [4, 1],
+    "from_north": [4, 1]
+  },
+  "objects": [
+    {
+      "id": "chest_1",
+      "kind": "chest",
+      "pos": [8, 5],
+      "loot": {
+        "kind": "key",
+        "key_id": "prototype_key"
+      }
+    },
+    {
+      "id": "npc_1",
+      "kind": "npc",
+      "pos": [2, 1],
+      "text": "Bring the key back to the east gate."
+    },
+    {
+      "id": "monster_1",
+      "kind": "monster",
+      "pos": [6, 6],
+      "monster_type": "patroller",
+      "patrol_span": 32,
+      "hp": 3,
+      "damage": 1
+    },
+    {
+      "id": "trap_1",
+      "kind": "trap",
+      "pos": [1, 5],
+      "damage": 1,
+      "respawn_to": "from_north"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "north_exit",
+      "direction": "up",
+      "pos": [4, 0],
+      "target_room": "room_0_0",
+      "target_spawn": "from_south",
+      "success_message": "START ROOM"
+    }
+  ]
+}
