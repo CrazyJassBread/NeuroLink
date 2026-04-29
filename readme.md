@@ -262,6 +262,29 @@ Exit types:
 - After termination, the environment sets an internal pending reset flag.
 - If the caller invokes `step()` again without calling `reset()`, the environment automatically resets first, then executes the new action, and reports `info["auto_reset"] == True`.
 
+### DIY Rendering
+
+`env_diy.render()` returns an original `160 x 160` RGB array built from procedural pixel icons. It does not load or copy commercial sprites, maps, tiles, music, or other external game assets.
+
+Current visual conventions:
+
+- Player: small humanoid icon with head, body, outline, and shield highlight.
+- Monsters: outlined blob icons with eyes; chaser, ambusher, and patroller types use distinct silhouettes/colors.
+- Chests: closed and opened treasure chest shapes; chest loot may show a small key, coin/gold, or heal icon.
+- Exits and doors: two-tile connected spans. Normal exits render as bright open passages, locked-key exits render as doors with a lock, and conditional exits render with a symbolic gate mark.
+- Buttons: raised and pressed states use different height/color treatment.
+- Traps: spike icons with warning color.
+- Walls/floor: simple procedural tile treatment that keeps the map readable without changing fixed geometry.
+
+The bottom HUD remains visual-only and shows room id, HP, gold, and collected items. It uses compact pixel text and does not restore the old red health bar.
+
+Headless render smoke test:
+
+```bash
+source .venv/bin/activate
+python -m pytest -q tests/test_env_diy_renderer.py
+```
+
 The HUD displays:
 
 - current room id

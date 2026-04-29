@@ -258,6 +258,26 @@ Current `env_diy` geometry policy:
 - map pixel height: 128
 - HUD pixel height: 32
 
+## 8. Rendering Policy
+
+`env_diy` rendering must remain original and procedural. Do not copy or imitate commercial game sprites, maps, or UI assets.
+
+Current renderer expectations:
+
+- `render()` returns a `160 x 160 x 3` RGB array and must work in headless tests.
+- Drawing helpers should live outside `DungeonEnv`; environment logic should not own sprite/icon details.
+- Use lightweight primitives or small code-defined pixel icons instead of external image assets.
+- Keep player, monsters, chests, exits/doors, keys, coins/gold, heal items, traps, and buttons visually distinguishable inside a `16 x 16` tile.
+- Normal exits, locked-key doors, and conditional doors should remain visually distinct, and two-tile exits should read as one connected doorway.
+- HUD rendering should stay compact and show room id, HP, gold, and collected items without reintroducing a red health bar.
+
+Recommended render smoke test:
+
+```bash
+source .venv/bin/activate
+python -m pytest -q tests/test_env_diy_renderer.py
+```
+
 Exit policy for `env_diy`:
 
 - exits are fixed two-tile regions centered on the room edge
