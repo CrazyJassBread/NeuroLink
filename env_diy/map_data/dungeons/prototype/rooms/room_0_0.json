@@ -35,6 +35,12 @@
       "text": "Find a key in the south room."
     },
     {
+      "id": "button_1",
+      "kind": "button",
+      "pos": [2, 6],
+      "message": "south gate ready"
+    },
+    {
       "id": "monster_1",
       "kind": "monster",
       "pos": [7, 4],
@@ -43,31 +49,38 @@
       "damage": 1
     }
   ],
-  "transitions": [
+  "exits": [
     {
       "id": "east_exit",
-      "pos": [9, 4],
-      "direction": "right",
+      "direction": "east",
       "target_room": "room_1_0",
-      "target_spawn": "from_west",
-      "requires_key": 1,
-      "locked_message": "NEED KEY",
+      "target_entry": "from_west",
+      "type": "locked_key",
+      "requires": {
+        "key_count": 1,
+        "consume_key": true
+      },
+      "blocked_message": "NEED KEY",
       "success_message": "EAST ROOM"
     },
     {
       "id": "west_exit",
-      "pos": [0, 4],
-      "direction": "left",
+      "direction": "west",
       "target_room": "room_-1_0",
-      "target_spawn": "from_east",
+      "target_entry": "from_east",
+      "type": "normal",
       "success_message": "WEST ROOM"
     },
     {
       "id": "south_exit",
-      "direction": "down",
-      "pos": [4, 7],
+      "direction": "south",
       "target_room": "room_0_1",
-      "target_spawn": "from_north",
+      "target_entry": "from_north",
+      "type": "conditional",
+      "requires": {
+        "button_pressed": "button_1"
+      },
+      "blocked_message": "PRESS BUTTON",
       "success_message": "SOUTH ROOM"
     }
   ]

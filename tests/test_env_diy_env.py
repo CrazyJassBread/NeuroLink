@@ -13,7 +13,9 @@ from env_diy.constants import (
     GRID_HEIGHT,
     GRID_WIDTH,
     MAP_PIXEL_HEIGHT,
+    MONSTER_HIT_KNOCKBACK_PX,
     MONSTER_SPEED_RATIO,
+    MONSTER_STUN_TICKS,
     PLAYER_SPEED_PX_PER_STEP,
     TILE_SIZE,
 )
@@ -65,13 +67,23 @@ class DungeonEnvTests(unittest.TestCase):
         self.assertLess(delta_x, TILE_SIZE)
         self.assertEqual(env.player.position_px[1], before[1])
 
-    def test_default_monster_speed_is_point_eight_of_player(self) -> None:
+    def test_default_monster_speed_is_half_of_player(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = DungeonEnv(self._write_monster_dungeon(Path(tmp_dir)))
             env.reset()
             monster = next(iter(env.room.monsters.values()))
 
         self.assertEqual(monster.speed_px_per_step, PLAYER_SPEED_PX_PER_STEP * MONSTER_SPEED_RATIO)
+        self.assertEqual(MONSTER_SPEED_RATIO, 0.5)
+
+    def test_monster_speed_override_still_works(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            env = DungeonEnv(self._write_monster_dungeon(Path(tmp_dir), speed_override=0.75))
+            env.reset()
+            monster = next(iter(env.room.monsters.values()))
+
+        self.assertEqual(monster.speed_px_per_step, 0.75)
+        self.assertLess(monster.speed_px_per_step, PLAYER_SPEED_PX_PER_STEP)
 
     def test_pixel_to_tile_conversion_uses_entity_center(self) -> None:
         tile = tile_from_position_px((10.0, 0.0), TILE_SIZE)
@@ -102,7 +114,104 @@ class DungeonEnvTests(unittest.TestCase):
             obs, reward, terminated, truncated, info = env.step(ACTION_NOOP)
             self.assertEqual(env.player.position_px[1], MAP_PIXEL_HEIGHT - TILE_SIZE)
 
-    def test_trap_and_button_and_exit_use_player_center_tile(self) -> None:
+    def test_any_east_exit_tile_triggers_room_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dungeon_path = self._write_simple_exit_dungeon(Path(tmp_dir), direction="east", exit_type="normal")
+            env = DungeonEnv(dungeon_path)
+            env.reset()
+
+            env.player.position_px = (144.0, 48.0)
+            obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
+            self.assertEqual(env.room.room_id, "room_b")
+            self.assertIn("room_transition", info["events"])
+
+            env.reset()
+            env.player.position_px = (144.0, 64.0)
+            obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
+
+        self.assertEqual(env.room.room_id, "room_b")
+        self.assertIn("room_transition", info["events"])
+
+    def test_non_exit_boundary_does_not_switch_room(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dungeon_path = self._write_simple_exit_dungeon(Path(tmp_dir), direction="east", exit_type="normal")
+            env = DungeonEnv(dungeon_path)
+            env.reset()
+            env.player.position_px = (144.0, 16.0)
+
+            obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
+
+        self.assertEqual(env.room.room_id, "room_a")
+        self.assertIn("blocked_bounds", info["events"])
+
+    def test_normal_exit_requires_no_items(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dungeon_path = self._write_simple_exit_dungeon(Path(tmp_dir), direction="west", exit_type="normal")
+            env = DungeonEnv(dungeon_path)
+            env.reset()
+            env.player.position_px = (0.0, 48.0)
+
+            obs, reward, terminated, truncated, info = env.step(ACTION_NOOP)
+            obs, reward, terminated, truncated, info = env.step(3)
+
+        self.assertEqual(env.room.room_id, "room_b")
+        self.assertIn("room_transition", info["events"])
+
+    def test_locked_key_exit_blocks_without_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dungeon_path = self._write_simple_exit_dungeon(
+                Path(tmp_dir),
+                direction="east",
+                exit_type="locked_key",
+                requires={"key_count": 1, "consume_key": True},
+            )
+            env = DungeonEnv(dungeon_path)
+            env.reset()
+            env.player.position_px = (144.0, 48.0)
+
+            obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
+
+        self.assertEqual(env.room.room_id, "room_a")
+        self.assertIn("blocked_locked", info["events"])
+
+    def test_locked_key_exit_consumes_key_when_configured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dungeon_path = self._write_simple_exit_dungeon(
+                Path(tmp_dir),
+                direction="east",
+                exit_type="locked_key",
+                requires={"key_count": 1, "consume_key": True},
+            )
+            env = DungeonEnv(dungeon_path)
+            env.reset()
+            env.player.keys = 1
+            env.player.position_px = (144.0, 48.0)
+
+            obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
+
+        self.assertEqual(env.room.room_id, "room_b")
+        self.assertIn("used_key", info["events"])
+        self.assertEqual(env.player.keys, 0)
+
+    def test_conditional_exit_blocks_until_button_pressed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dungeon_path = self._write_conditional_exit_dungeon(Path(tmp_dir))
+            env = DungeonEnv(dungeon_path)
+            env.reset()
+            env.player.position_px = (64.0, 112.0)
+
+            obs, reward, terminated, truncated, info = env.step(2)
+            self.assertEqual(env.room.room_id, "room_a")
+            self.assertIn("missing_requirement", info["events"])
+
+            env.room.buttons["button_1"].is_pressed = True
+            env.player.position_px = (64.0, 112.0)
+            obs, reward, terminated, truncated, info = env.step(2)
+
+        self.assertEqual(env.room.room_id, "room_b")
+        self.assertIn("room_transition", info["events"])
+
+    def test_trap_and_button_use_player_center_tile(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = DungeonEnv(self._write_trigger_dungeon(Path(tmp_dir)))
             env.reset()
@@ -113,16 +222,9 @@ class DungeonEnvTests(unittest.TestCase):
 
             for _ in range(8):
                 obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
-            self.assertIn("trap_damage", info["events"])
-            self.assertEqual(info["player_tile"], (1, 1))
 
-            env.player.keys = 1
-            env.player.position_px = (128.0, 64.0)
-            for _ in range(8):
-                obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
-
-        self.assertIn("room_transition", info["events"])
-        self.assertEqual(env.room.room_id, "room_b")
+        self.assertIn("trap_damage", info["events"])
+        self.assertEqual(info["player_tile"], (1, 1))
 
     def test_game_over_sets_terminated_and_next_step_auto_resets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -142,6 +244,41 @@ class DungeonEnvTests(unittest.TestCase):
         self.assertTrue(info["auto_reset"])
         self.assertLess(env.player.health, env.player.max_health)
         self.assertEqual(env.player.position_px, (16.0, 16.0))
+
+    def test_monster_collision_knockback_and_stun_still_work(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            env = DungeonEnv(self._write_monster_dungeon(Path(tmp_dir)))
+            env.reset()
+            monster = next(iter(env.room.monsters.values()))
+            monster.position_px = env.player.position_px
+            starting_x = monster.position_px[0]
+            starting_health = env.player.health
+
+            obs, reward, terminated, truncated, info = env.step(ACTION_NOOP)
+
+        self.assertEqual(env.player.health, starting_health - monster.damage)
+        self.assertEqual(monster.position_px[0] - starting_x, MONSTER_HIT_KNOCKBACK_PX)
+        self.assertGreater(monster.stun_ticks_remaining, 0)
+        self.assertIn("monster_hit", info["events"])
+
+    def test_stunned_monster_resumes_movement_after_stun_expires(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            env = DungeonEnv(self._write_monster_dungeon(Path(tmp_dir)))
+            env.reset()
+            monster = next(iter(env.room.monsters.values()))
+            monster.position_px = env.player.position_px
+
+            env.step(ACTION_NOOP)
+            stunned_position = monster.position_px
+            for _ in range(MONSTER_STUN_TICKS):
+                env.step(ACTION_NOOP)
+
+            self.assertEqual(monster.stun_ticks_remaining, 0)
+            self.assertEqual(monster.position_px, stunned_position)
+
+            obs, reward, terminated, truncated, info = env.step(ACTION_NOOP)
+
+        self.assertNotEqual(monster.position_px, stunned_position)
 
     def test_observation_is_dict_with_pixel_fields(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
@@ -165,20 +302,21 @@ class DungeonEnvTests(unittest.TestCase):
         }
         return self._write_dungeon(root, [room], "room_a")
 
-    def _write_monster_dungeon(self, root: Path) -> Path:
+    def _write_monster_dungeon(self, root: Path, speed_override: float | None = None) -> Path:
+        monster_payload: dict[str, object] = {
+            "id": "monster_1",
+            "kind": "monster",
+            "pos": [6, 1],
+            "monster_type": "chaser",
+        }
+        if speed_override is not None:
+            monster_payload["speed_px_per_step"] = speed_override
         room = {
             "id": "room_a",
             "coord": [0, 0],
             "layout": self._empty_layout(),
             "spawns": {"default": [1, 1]},
-            "objects": [
-                {
-                    "id": "monster_1",
-                    "kind": "monster",
-                    "pos": [6, 1],
-                    "monster_type": "chaser",
-                }
-            ],
+            "objects": [monster_payload],
         }
         return self._write_dungeon(root, [room], "room_a")
 
@@ -190,6 +328,14 @@ class DungeonEnvTests(unittest.TestCase):
             "coord": [0, 0],
             "layout": layout,
             "spawns": {"default": [1, 1]},
+            "objects": [
+                {
+                    "id": "monster_1",
+                    "kind": "monster",
+                    "pos": [4, 1],
+                    "monster_type": "chaser",
+                }
+            ],
         }
         return self._write_dungeon(root, [room], "room_a")
 
@@ -203,24 +349,8 @@ class DungeonEnvTests(unittest.TestCase):
                 {"id": "button_1", "kind": "button", "pos": [2, 1], "message": "pressed"},
                 {"id": "trap_1", "kind": "trap", "pos": [3, 1], "damage": 1, "respawn_to": "default"},
             ],
-            "transitions": [
-                {
-                    "id": "east_exit",
-                    "pos": [9, 4],
-                    "direction": "right",
-                    "target_room": "room_b",
-                    "target_spawn": "default",
-                    "requires_key": 1,
-                }
-            ],
         }
-        room_b = {
-            "id": "room_b",
-            "coord": [1, 0],
-            "layout": self._empty_layout(),
-            "spawns": {"default": [1, 4]},
-        }
-        return self._write_dungeon(root, [room_a, room_b], "room_a")
+        return self._write_dungeon(root, [room_a], "room_a")
 
     def _write_spawn_trap_dungeon(self, root: Path) -> Path:
         room = {
@@ -233,6 +363,78 @@ class DungeonEnvTests(unittest.TestCase):
             ],
         }
         return self._write_dungeon(root, [room], "room_a")
+
+    def _write_simple_exit_dungeon(
+        self,
+        root: Path,
+        *,
+        direction: str,
+        exit_type: str,
+        requires: dict | None = None,
+    ) -> Path:
+        target_coord = {
+            "east": [1, 0],
+            "west": [-1, 0],
+            "north": [0, -1],
+            "south": [0, 1],
+        }[direction]
+        target_spawn = {
+            "east": "west_entry",
+            "west": "east_entry",
+            "north": "south_entry",
+            "south": "north_entry",
+        }[direction]
+        room_a = {
+            "id": "room_a",
+            "coord": [0, 0],
+            "layout": self._empty_layout(),
+            "spawns": {"default": [1, 1]},
+            "exits": [
+                {
+                    "id": f"{direction}_exit",
+                    "direction": direction,
+                    "target_room": "room_b",
+                    "target_entry": target_spawn,
+                    "type": exit_type,
+                    "requires": requires or {},
+                }
+            ],
+        }
+        room_b = {
+            "id": "room_b",
+            "coord": target_coord,
+            "layout": self._empty_layout(),
+            "spawns": {target_spawn: [1, 4]},
+        }
+        return self._write_dungeon(root, [room_a, room_b], "room_a")
+
+    def _write_conditional_exit_dungeon(self, root: Path) -> Path:
+        room_a = {
+            "id": "room_a",
+            "coord": [0, 0],
+            "layout": self._empty_layout(),
+            "spawns": {"default": [1, 1]},
+            "objects": [
+                {"id": "button_1", "kind": "button", "pos": [2, 6], "message": "pressed"}
+            ],
+            "exits": [
+                {
+                    "id": "south_exit",
+                    "direction": "south",
+                    "target_room": "room_b",
+                    "target_entry": "north_entry",
+                    "type": "conditional",
+                    "requires": {"button_pressed": "button_1"},
+                }
+            ],
+        }
+        room_b = {
+            "id": "room_b",
+            "coord": [0, 1],
+            "layout": self._empty_layout(),
+            "spawns": {"north_entry": [4, 1]},
+        }
+        return self._write_dungeon(root, [room_a, room_b], "room_a")
 
     def _write_dungeon(self, root: Path, rooms: list[dict], start_room: str) -> Path:
         room_files: list[str] = []

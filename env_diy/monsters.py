@@ -8,7 +8,6 @@ from .entities import (
     GridPos,
     PixelPos,
     move_with_tile_collisions,
-    tile_center_px,
     tile_from_position_px,
     tile_to_top_left_px,
 )
@@ -28,6 +27,8 @@ class MonsterState:
     activated: bool = False
     patrol_points_px: list[PixelPos] = field(default_factory=list)
     patrol_index: int = 0
+    stun_ticks_remaining: int = 0
+    last_move_delta_px: PixelPos = (0.0, 0.0)
 
     @property
     def tile_pos(self) -> GridPos:
@@ -69,6 +70,10 @@ def update_monster(
     wall_tiles: set[GridPos],
     blocking_tiles: set[GridPos],
 ) -> None:
+    if monster.stun_ticks_remaining > 0:
+        monster.last_move_delta_px = (0.0, 0.0)
+        return
+
     if monster.monster_type == "ambusher":
         if _within_range(monster.tile_pos, tile_from_position_px(player_position_px), monster.ambush_range_tiles):
             monster.activated = True
@@ -129,17 +134,23 @@ def _move_towards(
     dy = target_y - monster.position_px[1]
     distance = math.hypot(dx, dy)
     if distance <= 1e-6:
+        monster.last_move_delta_px = (0.0, 0.0)
         return
 
     step_x = (dx / distance) * monster.speed_px_per_step
     step_y = (dy / distance) * monster.speed_px_per_step
     world_blockers = set(wall_tiles) | set(blocking_tiles)
     world_blockers.discard(monster.tile_pos)
+    previous_position = monster.position_px
     monster.position_px = move_with_tile_collisions(
         monster.position_px,
         monster.size_px,
         (step_x, step_y),
         world_blockers,
+    )
+    monster.last_move_delta_px = (
+        monster.position_px[0] - previous_position[0],
+        monster.position_px[1] - previous_position[1],
     )
 
 

@@ -6,19 +6,16 @@ import numpy as np
 import pygame
 
 from .constants import (
-    ACTION_NOOP,
     COLOR_HUD_TEXT,
     COLOR_HUD_TEXT_DIM,
     HUD_PIXEL_Y,
-    INTERNAL_HEIGHT,
-    INTERNAL_WIDTH,
     SCALE_FACTOR,
     TARGET_FPS,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
 )
 from .env import DungeonEnv
-from .input_state import keydown_to_action
+from .input_state import HumanInputState
 
 
 class ZeldaLikeGame:
@@ -33,6 +30,7 @@ class ZeldaLikeGame:
 
         self.env = DungeonEnv(room_file=room_file, render_mode="rgb_array", auto_reset_on_step=True)
         self.env.reset()
+        self.input_state = HumanInputState()
         self.running = True
 
     def _draw(self) -> None:
@@ -53,7 +51,6 @@ class ZeldaLikeGame:
     def run(self) -> None:
         while self.running:
             self.clock.tick(TARGET_FPS)
-            frame_action = ACTION_NOOP
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -61,11 +58,12 @@ class ZeldaLikeGame:
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     self.running = False
                 elif event.type == pygame.KEYDOWN:
-                    action = keydown_to_action(event.key)
-                    if action is not None:
-                        frame_action = action
+                    self.input_state.handle_keydown(event.key)
+                elif event.type == pygame.KEYUP:
+                    self.input_state.handle_keyup(event.key)
 
             if self.running:
+                frame_action = self.input_state.resolve_action()
                 self.env.step(frame_action)
 
             self._draw()

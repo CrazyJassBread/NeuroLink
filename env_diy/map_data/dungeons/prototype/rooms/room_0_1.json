@@ -15,6 +15,7 @@
     "default": [4, 1],
     "from_north": [4, 1]
   },
+  "default_spawn": "default",
   "objects": [
     {
       "id": "chest_1",
@@ -48,13 +49,13 @@
       "respawn_to": "from_north"
     }
   ],
-  "transitions": [
+  "exits": [
     {
       "id": "north_exit",
-      "direction": "up",
-      "pos": [4, 0],
+      "direction": "north",
       "target_room": "room_0_0",
-      "target_spawn": "from_south",
+      "target_entry": "from_south",
+      "type": "normal",
       "success_message": "START ROOM"
     }
   ]

@@ -258,6 +258,57 @@ Current `env_diy` geometry policy:
 - map pixel height: 128
 - HUD pixel height: 32
 
+Exit policy for `env_diy`:
+
+- exits are fixed two-tile regions centered on the room edge
+- north exit tiles: `(4, 0)` and `(5, 0)`
+- south exit tiles: `(4, 7)` and `(5, 7)`
+- west exit tiles: `(0, 3)` and `(0, 4)`
+- east exit tiles: `(9, 3)` and `(9, 4)`
+- room connectivity must still come from map config; only the exit shape/placement rule is centralized
+
+## 8. Input and Tick Semantics
+
+For `env_diy`, keep these rules stable unless a task explicitly changes them and also updates tests/docs:
+
+- `env.step(action)` always advances exactly one environment tick.
+- `0 = no-op`, `1 = up`, `2 = down`, `3 = left`, `4 = right`, `5 = interact`, `6 = B/reserved`.
+- `no-op`, `interact`, and `B` still advance monster AI, stun timers, collision checks, reward logic, and info generation.
+- Human play may translate held keyboard state into per-frame actions, but that logic belongs in the interactive runner or input helper, not in the Gymnasium API itself.
+- In the pygame runner, held direction keys should repeat movement every frame.
+- If multiple direction keys are held, the most recently pressed direction should win unless a different policy is intentionally documented and tested.
+- Default monster speed should remain `player_speed * 0.5` unless a specific monster overrides its own speed in config.
+
+## 9. Dynamic Entity Collision Policy
+
+Dynamic entities use pixel/world coordinates. Static map content remains tile-based.
+
+- Player and monsters use pixel-level positions and `16 x 16` AABBs by default.
+- Wall/bounds collision should resolve through explicit AABB-vs-tile checks.
+- Dynamic entities must remain inside the dungeon area only:
+  - `x in [0, 159]`
+  - `y in [0, 127]`
+- The HUD area (`y in [128, 159]`) is visual only and must never be entered by dynamic entities.
+- Tile-based triggers such as traps, buttons, and exits should continue to use the entity center tile derived from pixel position.
+
+Monster contact damage policy:
+
+- A valid monster overlap deals damage once and attempts to knock the monster away from the player.
+- The preferred knockback distance is one full tile (`16px`), but the environment may fall back to shorter legal distances such as `12px`, `8px`, `4px`, or `0px`.
+- After a valid hit, the monster enters a tick-based stun window and must not move, chase, or apply contact damage while stunned.
+- Stun duration must be based on environment ticks, not wall-clock time.
+- The environment should expose these outcomes clearly in `info`, while keeping compatibility with existing string event lists.
+- The primary protection against repeated damage should come from monster knockback plus monster stun, not from a long player invincibility timer.
+- Knockback must still obey walls, map bounds, and the HUD boundary.
+
+Exit and door policy:
+
+- Distinguish `normal`, `locked_key`, and `conditional` exits in both config and render output.
+- `normal` exits have no requirements.
+- `locked_key` exits should use explicit requirement fields such as `key_count` and optional `consume_key`.
+- `conditional` exits should use explicit requirement fields such as `button_pressed` or `item`.
+- When requirements are not satisfied, the player must remain in the current room and `info` should expose a blocked reason such as `blocked_locked` or `missing_requirement`.
+
 Map configuration coordinates must only target the dungeon area.
 
 - valid columns: `0..9`

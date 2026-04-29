@@ -4,6 +4,10 @@ import unittest
 from pathlib import Path
 
 from env_diy.constants import (
+    COLOR_EXIT_CONDITIONAL,
+    COLOR_EXIT_LOCKED,
+    COLOR_EXIT_NORMAL,
+    COLOR_HUD_ACCENT,
     COLOR_HUD_BG,
     COLOR_PLAYER,
     HUD_PIXEL_Y,
@@ -36,9 +40,11 @@ class RendererTests(unittest.TestCase):
         frame = env.render()
         hud_sample = tuple(frame[HUD_PIXEL_Y + 1, 1])
         map_sample = tuple(frame[MAP_PIXEL_HEIGHT - 2, 1])
+        accent_sample = tuple(frame[HUD_PIXEL_Y + 15, 20])
 
         self.assertEqual(hud_sample, COLOR_HUD_BG)
         self.assertNotEqual(hud_sample, map_sample)
+        self.assertEqual(accent_sample, COLOR_HUD_ACCENT)
 
     def test_dynamic_entities_render_at_pixel_positions(self) -> None:
         env = DungeonEnv(STRUCTURED_DUNGEON)
@@ -52,6 +58,32 @@ class RendererTests(unittest.TestCase):
 
         self.assertEqual(inside_player, COLOR_PLAYER)
         self.assertNotEqual(left_of_player, COLOR_PLAYER)
+
+    def test_exit_types_render_with_distinct_colors(self) -> None:
+        env = DungeonEnv(STRUCTURED_DUNGEON)
+        env.reset()
+
+        frame = env.render()
+        normal_exit = tuple(frame[52, 4])
+        locked_exit = tuple(frame[52, 148])
+        conditional_exit = tuple(frame[116, 68])
+
+        self.assertEqual(normal_exit, COLOR_EXIT_NORMAL)
+        self.assertEqual(locked_exit, COLOR_EXIT_LOCKED)
+        self.assertEqual(conditional_exit, COLOR_EXIT_CONDITIONAL)
+
+    def test_hud_lines_show_room_hp_gold_and_items(self) -> None:
+        env = DungeonEnv(STRUCTURED_DUNGEON)
+        env.reset()
+        env.player.gold = 12
+        env.player.items = ["key", "bow"]
+
+        line_1, line_2 = env.hud_lines()
+
+        self.assertIn("R:", line_1)
+        self.assertIn("HP:", line_1)
+        self.assertIn("G:12", line_1)
+        self.assertEqual(line_2, "I:key,bow")
 
 
 if __name__ == "__main__":

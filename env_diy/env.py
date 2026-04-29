@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -18,10 +19,13 @@ from .constants import (
     MAP_PIXEL_HEIGHT,
     MAP_PIXEL_WIDTH,
     MESSAGE_DEFAULT,
+    MONSTER_HIT_KNOCKBACK_PX,
+    MONSTER_STUN_TICKS,
     MOVE_ACTION_TO_DIRECTION,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
     TILE_SIZE,
+    TARGET_FPS,
 )
 from .entities import (
     PlayerState,
@@ -33,14 +37,22 @@ from .entities import (
     tile_from_position_px,
     tile_to_top_left_px,
 )
-from .monsters import update_monster
+from .monsters import MonsterState, update_monster
 from .observation import room_observation
 from .renderer import render_frame
-from .room import RoomManager, RoomState, TransitionConfig
+from .room import ExitConfig, RoomManager, RoomState
+
+
+MOVE_TO_EXIT_DIRECTION = {
+    "up": "north",
+    "down": "south",
+    "left": "west",
+    "right": "east",
+}
 
 
 class DungeonEnv(gym.Env):
-    metadata = {"render_modes": ["rgb_array"], "render_fps": 15}
+    metadata = {"render_modes": ["rgb_array"], "render_fps": TARGET_FPS}
 
     def __init__(
         self,
@@ -120,7 +132,7 @@ class DungeonEnv(gym.Env):
         self.last_message = MESSAGE_DEFAULT
         self.step_count = 0
         self.episode += 1
-        return self._get_obs(), self._get_info(events=["reset"])
+        return self._get_obs(), self._get_info(events=["reset"], event_details=[])
 
     def step(self, action: int) -> tuple[dict[str, np.ndarray], float, bool, bool, dict[str, Any]]:
         assert self.action_space.contains(action), "Invalid action!"
@@ -134,6 +146,7 @@ class DungeonEnv(gym.Env):
 
         self.step_count += 1
         events: list[str] = []
+        event_details: list[dict[str, Any]] = []
         reward = 0.0
         terminated = False
         truncated = False
@@ -159,7 +172,7 @@ class DungeonEnv(gym.Env):
         if self.player.health > 0:
             reward += self._update_monsters(events)
         if self.player.health > 0:
-            reward += self._resolve_monster_contact(events)
+            reward += self._resolve_monster_contact(events, event_details)
 
         if self.player.health <= 0:
             terminated = True
@@ -168,7 +181,7 @@ class DungeonEnv(gym.Env):
             events.append("game_over")
 
         observation = self._get_obs()
-        info = self._get_info(events=events, auto_reset=auto_reset)
+        info = self._get_info(events=events, event_details=event_details, auto_reset=auto_reset)
         if terminated:
             info["game_over"] = True
         return observation, reward, terminated, truncated, info
@@ -180,12 +193,9 @@ class DungeonEnv(gym.Env):
         return None
 
     def hud_lines(self) -> tuple[str, str]:
-        room_text = f"ROOM {self.room.room_id}  HP {self.player.health}/{self.player.max_health}"
-        status = (
-            f"G {self.player.gold}  K {self.player.keys}  "
-            f"A {self.player.action_a_label}  B {self.player.action_b_label}"
-        )
-        return room_text, f"{status}  {self.last_message}"
+        room_text = f"R:{self.room.room_id} HP:{self.player.health} G:{self.player.gold}"
+        items = ",".join(self.player.items) if self.player.items else "-"
+        return room_text, f"I:{items}"
 
     def _handle_move(self, direction: str, events: list[str]) -> float:
         dx, dy = {
@@ -221,28 +231,49 @@ class DungeonEnv(gym.Env):
 
     def _resolve_transition(self, direction: str, events: list[str]) -> float:
         player_tile = self._player_tile()
-        transition = self.room.transition_at(player_tile, direction)
-        if transition is None or not self._player_is_flush_with_edge(direction):
+        exit_direction = MOVE_TO_EXIT_DIRECTION[direction]
+        exit_config = self.room.exit_at(player_tile, exit_direction)
+        if exit_config is None or not self._player_is_flush_with_edge(direction):
             return 0.0
-        return self._apply_transition(transition, events)
+        return self._apply_exit(exit_config, events)
 
-    def _apply_transition(self, transition: TransitionConfig, events: list[str]) -> float:
-        if transition.requires_key > self.player.keys:
-            self.last_message = transition.locked_message
-            events.append("blocked_locked")
+    def _apply_exit(self, exit_config: ExitConfig, events: list[str]) -> float:
+        allowed, blocked_event = self._can_use_exit(exit_config)
+        if not allowed:
+            self.last_message = exit_config.blocked_message
+            events.append(blocked_event)
             return -0.02
 
-        if transition.requires_key > 0:
-            self.player.keys -= transition.requires_key
+        if exit_config.exit_type == "locked_key" and bool(exit_config.requires.get("consume_key", False)):
+            self.player.keys -= int(exit_config.requires.get("key_count", 1))
             events.append("used_key")
 
-        self.room_coord = self.room_manager.coord_for_room_id(transition.target_room_id)
+        self.room_coord = self.room_manager.coord_for_room_id(exit_config.target_room_id)
         self.room = self.room_manager.get_room(self.room_coord)
-        spawn_tile = self.room.spawns[transition.target_spawn]
+        spawn_tile = self.room.spawns[exit_config.target_entry]
         self.player.position_px = tile_to_top_left_px(spawn_tile)
-        self.last_message = transition.success_message
+        self.last_message = exit_config.success_message
         events.append("room_transition")
         return 0.1
+
+    def _can_use_exit(self, exit_config: ExitConfig) -> tuple[bool, str]:
+        if exit_config.exit_type == "normal":
+            return True, ""
+        if exit_config.exit_type == "locked_key":
+            required_keys = int(exit_config.requires.get("key_count", 1))
+            if self.player.keys < required_keys:
+                return False, "blocked_locked"
+            return True, ""
+
+        button_id = exit_config.requires.get("button_pressed")
+        if button_id is not None:
+            button = self.room.buttons.get(button_id)
+            if button is None or not button.is_pressed:
+                return False, "missing_requirement"
+        item_name = exit_config.requires.get("item")
+        if item_name is not None and item_name not in self.player.items:
+            return False, "missing_requirement"
+        return True, ""
 
     def _handle_action_a(self, events: list[str]) -> float:
         player_tile = self._player_tile()
@@ -322,6 +353,10 @@ class DungeonEnv(gym.Env):
         reward = 0.0
         occupied_tiles = {monster.tile_pos for monster in self.room.monsters.values()}
         for monster in self.room.monsters.values():
+            if monster.stun_ticks_remaining > 0:
+                monster.stun_ticks_remaining -= 1
+                monster.last_move_delta_px = (0.0, 0.0)
+                continue
             occupied_tiles.discard(monster.tile_pos)
             update_monster(monster, self.player.position_px, self.room.walls, occupied_tiles)
             occupied_tiles.add(monster.tile_pos)
@@ -329,8 +364,10 @@ class DungeonEnv(gym.Env):
             events.append("monsters_updated")
         return reward
 
-    def _resolve_monster_contact(self, events: list[str]) -> float:
+    def _resolve_monster_contact(self, events: list[str], event_details: list[dict[str, Any]]) -> float:
         for monster in self.room.monsters.values():
+            if monster.stun_ticks_remaining > 0:
+                continue
             if aabb_overlap(
                 self.player.position_px,
                 self.player.size_px,
@@ -338,8 +375,20 @@ class DungeonEnv(gym.Env):
                 monster.size_px,
             ):
                 self.player.health = max(0, self.player.health - monster.damage)
+                knockback_applied_px = self._apply_monster_knockback(monster)
+                monster.stun_ticks_remaining = MONSTER_STUN_TICKS
                 self.last_message = f"HIT -{monster.damage}HP"
                 events.append("monster_hit")
+                event_details.append(
+                    {
+                        "type": "monster_collision",
+                        "monster_id": monster.monster_id,
+                        "damage": monster.damage,
+                        "monster_knockback_px": MONSTER_HIT_KNOCKBACK_PX,
+                        "knockback_applied_px": knockback_applied_px,
+                        "monster_stun_ticks": MONSTER_STUN_TICKS,
+                    }
+                )
                 return -0.4
         return 0.0
 
@@ -370,7 +419,13 @@ class DungeonEnv(gym.Env):
             "monsters_active_mask": monster_mask,
         }
 
-    def _get_info(self, *, events: list[str], auto_reset: bool = False) -> dict[str, Any]:
+    def _get_info(
+        self,
+        *,
+        events: list[str],
+        event_details: list[dict[str, Any]],
+        auto_reset: bool = False,
+    ) -> dict[str, Any]:
         info = {
             "room_id": self.room.room_id,
             "room_coord": self.room.coord,
@@ -380,6 +435,7 @@ class DungeonEnv(gym.Env):
             "items": list(self.player.items),
             "message": self.last_message,
             "events": events,
+            "event_details": event_details,
             "episode": self.episode,
             "step": self.step_count,
             "player_position_px": self.player.position_px,
@@ -391,6 +447,55 @@ class DungeonEnv(gym.Env):
 
     def _player_tile(self) -> tuple[int, int]:
         return tile_from_position_px(self.player.position_px, self.player.size_px)
+
+    def _apply_monster_knockback(self, monster: MonsterState) -> float:
+        knockback_dx, knockback_dy = self._monster_knockback_vector(monster)
+        other_monster_tiles = {
+            other.tile_pos
+            for other in self.room.monsters.values()
+            if other.monster_id != monster.monster_id
+        }
+        world_blockers = self.room.blocking_tiles() | other_monster_tiles
+        previous_position = monster.position_px
+        for distance in (float(MONSTER_HIT_KNOCKBACK_PX), 12.0, 8.0, 4.0, 0.0):
+            candidate_position = move_with_tile_collisions(
+                previous_position,
+                monster.size_px,
+                (knockback_dx * distance, knockback_dy * distance),
+                world_blockers,
+            )
+            moved_px = math.hypot(
+                candidate_position[0] - previous_position[0],
+                candidate_position[1] - previous_position[1],
+            )
+            if moved_px + 1e-6 >= distance:
+                monster.position_px = candidate_position
+                monster.last_move_delta_px = (
+                    monster.position_px[0] - previous_position[0],
+                    monster.position_px[1] - previous_position[1],
+                )
+                return distance
+        monster.last_move_delta_px = (0.0, 0.0)
+        return 0.0
+
+    def _monster_knockback_vector(self, monster: MonsterState) -> tuple[float, float]:
+        player_center = entity_center_px(self.player.position_px, self.player.size_px)
+        monster_center = entity_center_px(monster.position_px, monster.size_px)
+        dx = monster_center[0] - player_center[0]
+        dy = monster_center[1] - player_center[1]
+        distance = math.hypot(dx, dy)
+
+        if distance <= 1e-6:
+            last_move_x, last_move_y = monster.last_move_delta_px
+            move_length = math.hypot(last_move_x, last_move_y)
+            if move_length > 1e-6:
+                dx = -last_move_x / move_length
+                dy = -last_move_y / move_length
+            else:
+                dx, dy = 1.0, 0.0
+            distance = 1.0
+
+        return dx / distance, dy / distance
 
     def _player_is_flush_with_edge(self, direction: str) -> bool:
         epsilon = 1e-6

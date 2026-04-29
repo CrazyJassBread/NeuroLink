@@ -6,11 +6,10 @@ from .constants import (
     COLOR_BUTTON,
     COLOR_CHEST,
     COLOR_CHEST_OPEN,
-    COLOR_EXIT,
+    COLOR_EXIT_CONDITIONAL,
     COLOR_EXIT_LOCKED,
+    COLOR_EXIT_NORMAL,
     COLOR_FRAME_BG,
-    COLOR_HEALTH_BAR_BG,
-    COLOR_HEALTH_BAR_FILL,
     COLOR_HUD_ACCENT,
     COLOR_HUD_BG,
     COLOR_HUD_PANEL,
@@ -46,8 +45,8 @@ def render_frame(room: RoomState, player: PlayerState) -> np.ndarray:
     frame[:, :] = COLOR_FRAME_BG
 
     _draw_map_background(frame)
-    _draw_hud_background(frame, player)
-    _draw_transitions(frame, room, player)
+    _draw_hud_background(frame)
+    _draw_exits(frame, room)
     _draw_walls(frame, room)
     _draw_objects(frame, room)
     _draw_dynamic_entity(frame, player.position_px, player.size_px, COLOR_PLAYER, padding=2)
@@ -71,18 +70,10 @@ def _checker_color(row: int, col: int) -> tuple[int, int, int]:
     return tuple(min(255, channel + 6) for channel in COLOR_MAP_BG)
 
 
-def _draw_hud_background(frame: np.ndarray, player: PlayerState) -> None:
+def _draw_hud_background(frame: np.ndarray) -> None:
     frame[HUD_PIXEL_Y:, :] = COLOR_HUD_BG
     frame[HUD_PIXEL_Y + 2 : INTERNAL_HEIGHT - 2, 2 : INTERNAL_WIDTH - 2] = COLOR_HUD_PANEL
-    bar_top = HUD_PIXEL_Y + 5
-    bar_left = 6
-    bar_width = 56
-    frame[bar_top : bar_top + 6, bar_left : bar_left + bar_width] = COLOR_HEALTH_BAR_BG
-    fill_ratio = 0.0 if player.max_health <= 0 else player.health / player.max_health
-    fill_width = int(round(bar_width * max(0.0, min(1.0, fill_ratio))))
-    if fill_width > 0:
-        frame[bar_top : bar_top + 6, bar_left : bar_left + fill_width] = COLOR_HEALTH_BAR_FILL
-    frame[HUD_PIXEL_Y + 18 : HUD_PIXEL_Y + 20, 6 : INTERNAL_WIDTH - 6] = COLOR_HUD_ACCENT
+    frame[HUD_PIXEL_Y + 15 : HUD_PIXEL_Y + 17, 6 : INTERNAL_WIDTH - 6] = COLOR_HUD_ACCENT
 
 
 def _draw_walls(frame: np.ndarray, room: RoomState) -> None:
@@ -90,10 +81,16 @@ def _draw_walls(frame: np.ndarray, room: RoomState) -> None:
         _fill_tile(frame, col, row, COLOR_WALL, padding=1)
 
 
-def _draw_transitions(frame: np.ndarray, room: RoomState, player: PlayerState) -> None:
-    for transition in room.transitions:
-        color = COLOR_EXIT if player.keys >= transition.requires_key else COLOR_EXIT_LOCKED
-        _fill_tile(frame, transition.pos[0], transition.pos[1], color, padding=4)
+def _draw_exits(frame: np.ndarray, room: RoomState) -> None:
+    for exit_config in room.exits:
+        if exit_config.exit_type == "locked_key":
+            color = COLOR_EXIT_LOCKED
+        elif exit_config.exit_type == "conditional":
+            color = COLOR_EXIT_CONDITIONAL
+        else:
+            color = COLOR_EXIT_NORMAL
+        for tile in exit_config.tiles:
+            _fill_tile(frame, tile[0], tile[1], color, padding=4)
 
 
 def _draw_objects(frame: np.ndarray, room: RoomState) -> None:

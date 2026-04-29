@@ -15,6 +15,7 @@
     "default": [8, 4],
     "from_east": [8, 4]
   },
+  "default_spawn": "default",
   "objects": [
     {
       "id": "chest_1",
@@ -49,13 +50,13 @@
       "damage": 1
     }
   ],
-  "transitions": [
+  "exits": [
     {
       "id": "east_exit",
-      "direction": "right",
-      "pos": [9, 4],
+      "direction": "east",
       "target_room": "room_0_0",
-      "target_spawn": "from_west",
+      "target_entry": "from_west",
+      "type": "normal",
       "success_message": "START ROOM"
     }
   ]

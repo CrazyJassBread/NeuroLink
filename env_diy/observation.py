@@ -40,8 +40,9 @@ def room_observation(room: RoomState, player: PlayerState) -> np.ndarray:
     for button in room.buttons.values():
         observation[button.pos[1], button.pos[0]] = TILE_BUTTON
 
-    for transition in room.transitions:
-        observation[transition.pos[1], transition.pos[0]] = TILE_EXIT
+    for exit_config in room.exits:
+        for tile in exit_config.tiles:
+            observation[tile[1], tile[0]] = TILE_EXIT
 
     for monster in room.monsters.values():
         monster_tile = monster.tile_pos

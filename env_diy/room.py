@@ -18,8 +18,21 @@ SUPPORTED_OBJECT_KINDS = {
     "trap",
 }
 
-SUPPORTED_DIRECTIONS = {"up", "down", "left", "right"}
+SUPPORTED_EXIT_DIRECTIONS = {"north", "south", "west", "east"}
+SUPPORTED_EXIT_TYPES = {"normal", "locked_key", "conditional"}
+SUPPORTED_REQUIREMENT_KEYS = {"key_count", "consume_key", "button_pressed", "item"}
 LAYOUT_TILES = {"#", "."}
+
+EXIT_DIRECTION_TILES: dict[str, tuple[GridPos, GridPos]] = {
+    "north": ((4, 0), (5, 0)),
+    "south": ((4, GRID_HEIGHT - 1), (5, GRID_HEIGHT - 1)),
+    "west": ((0, 3), (0, 4)),
+    "east": ((GRID_WIDTH - 1, 3), (GRID_WIDTH - 1, 4)),
+}
+
+
+def exit_tiles_for_direction(direction: str) -> tuple[GridPos, GridPos]:
+    return EXIT_DIRECTION_TILES[direction]
 
 
 class MapValidationError(ValueError):
@@ -45,15 +58,19 @@ class ObjectConfig:
 
 
 @dataclass(frozen=True)
-class TransitionConfig:
-    transition_id: str
-    pos: GridPos
+class ExitConfig:
+    exit_id: str
     direction: str
+    tiles: tuple[GridPos, GridPos]
     target_room_id: str
-    target_spawn: str = "default"
-    requires_key: int = 0
-    locked_message: str = "LOCKED"
+    target_entry: str
+    exit_type: str = "normal"
+    requires: dict[str, Any] = field(default_factory=dict)
+    blocked_message: str = "BLOCKED"
     success_message: str = "MOVED"
+
+    def contains(self, pos: GridPos) -> bool:
+        return pos in self.tiles
 
 
 @dataclass(frozen=True)
@@ -66,7 +83,7 @@ class RoomTemplate:
     default_spawn_name: str
     walls: frozenset[GridPos]
     objects: tuple[ObjectConfig, ...]
-    transitions: tuple[TransitionConfig, ...]
+    exits: tuple[ExitConfig, ...]
 
 
 @dataclass
@@ -83,7 +100,7 @@ class RoomState:
     traps: dict[str, TrapState]
     buttons: dict[str, ButtonState]
     monsters: dict[str, MonsterState]
-    transitions: list[TransitionConfig]
+    exits: list[ExitConfig]
 
     def chest_at(self, pos: GridPos) -> ChestState | None:
         for chest in self.chests.values():
@@ -109,10 +126,10 @@ class RoomState:
                 return button
         return None
 
-    def transition_at(self, pos: GridPos, direction: str) -> TransitionConfig | None:
-        for transition in self.transitions:
-            if transition.pos == pos and transition.direction == direction:
-                return transition
+    def exit_at(self, pos: GridPos, direction: str) -> ExitConfig | None:
+        for exit_config in self.exits:
+            if exit_config.direction == direction and exit_config.contains(pos):
+                return exit_config
         return None
 
     def blocking_tiles(self) -> set[GridPos]:
@@ -164,7 +181,7 @@ class RoomManager:
         else:
             raise MapValidationError(self.room_file, "start_room", "must be a room id string")
 
-        self._validate_transition_targets()
+        self._validate_exit_targets()
 
     def _register_template(self, template: RoomTemplate, room_path: Path) -> None:
         if template.coord in self.room_templates:
@@ -197,19 +214,22 @@ class RoomManager:
             self._validate_floor_position(spawn_pos, wall_set, f"spawns.{spawn_name}", room_path)
             spawns[spawn_name] = spawn_pos
 
-        default_spawn_name = str(payload.get("default_spawn", "default"))
-        if default_spawn_name not in spawns:
-            raise MapValidationError(room_path, "default_spawn", f"unknown spawn '{default_spawn_name}'")
+        default_spawn_name = payload.get("default_spawn")
+        if default_spawn_name is None and len(spawns) == 1:
+            default_spawn_name = next(iter(spawns))
+        if not isinstance(default_spawn_name, str) or default_spawn_name not in spawns:
+            raise MapValidationError(room_path, "default_spawn", f"unknown spawn '{default_spawn_name or 'default'}'")
 
         raw_objects = payload.get("objects", [])
         if not isinstance(raw_objects, list):
             raise MapValidationError(room_path, "objects", "must be a list")
         objects = self._build_objects(raw_objects, wall_set, room_path)
+        object_kinds = {entry.object_id: entry.kind for entry in objects}
 
-        raw_transitions = payload.get("transitions", [])
-        if not isinstance(raw_transitions, list):
-            raise MapValidationError(room_path, "transitions", "must be a list")
-        transitions = self._build_transitions(raw_transitions, wall_set, room_path)
+        raw_exits = payload.get("exits", [])
+        if not isinstance(raw_exits, list):
+            raise MapValidationError(room_path, "exits", "must be a list")
+        exits = self._build_exits(raw_exits, wall_set, object_kinds, room_path)
 
         return RoomTemplate(
             room_id=room_id,
@@ -220,7 +240,7 @@ class RoomManager:
             default_spawn_name=default_spawn_name,
             walls=wall_set,
             objects=tuple(objects),
-            transitions=tuple(transitions),
+            exits=tuple(exits),
         )
 
     def _build_objects(
@@ -261,86 +281,153 @@ class RoomManager:
 
         return objects
 
-    def _build_transitions(
+    def _build_exits(
         self,
-        raw_transitions: list[dict[str, Any]],
+        raw_exits: list[dict[str, Any]],
         wall_tiles: frozenset[GridPos],
+        object_kinds: dict[str, str],
         room_path: Path,
-    ) -> list[TransitionConfig]:
+    ) -> list[ExitConfig]:
         seen_ids: set[str] = set()
-        transitions: list[TransitionConfig] = []
+        exits: list[ExitConfig] = []
 
-        for index, entry in enumerate(raw_transitions):
+        for index, entry in enumerate(raw_exits):
             if not isinstance(entry, dict):
-                raise MapValidationError(room_path, f"transitions[{index}]", "must be an object")
+                raise MapValidationError(room_path, f"exits[{index}]", "must be an object")
 
-            transition_id = self._require_string(entry.get("id"), f"transitions[{index}].id", room_path)
-            if transition_id in seen_ids:
+            exit_id = self._require_string(entry.get("id"), f"exits[{index}].id", room_path)
+            if exit_id in seen_ids:
+                raise MapValidationError(room_path, f"exits[{index}].id", f"duplicate exit id '{exit_id}'")
+            seen_ids.add(exit_id)
+
+            direction = self._require_string(entry.get("direction"), f"exits[{index}].direction", room_path).lower()
+            if direction not in SUPPORTED_EXIT_DIRECTIONS:
+                allowed = ", ".join(sorted(SUPPORTED_EXIT_DIRECTIONS))
                 raise MapValidationError(
                     room_path,
-                    f"transitions[{index}].id",
-                    f"duplicate transition id '{transition_id}'",
+                    f"exits[{index}].direction",
+                    f"unsupported exit direction '{direction}', allowed: {allowed}",
                 )
-            seen_ids.add(transition_id)
 
-            pos = self._require_grid_coord(entry.get("pos"), f"transitions[{index}].pos", room_path)
-            self._validate_floor_position(pos, wall_tiles, f"transitions[{index}].pos", room_path)
-
-            direction = self._require_string(entry.get("direction"), f"transitions[{index}].direction", room_path)
-            if direction not in SUPPORTED_DIRECTIONS:
-                raise MapValidationError(
-                    room_path,
-                    f"transitions[{index}].direction",
-                    f"unsupported direction '{direction}'",
-                )
-            self._validate_transition_edge(pos, direction, f"transitions[{index}].pos", room_path)
+            tiles = exit_tiles_for_direction(direction)
+            for tile_index, tile in enumerate(tiles):
+                self._validate_floor_position(tile, wall_tiles, f"exits[{index}].tiles[{tile_index}]", room_path)
 
             target_room_id = self._require_string(
                 entry.get("target_room"),
-                f"transitions[{index}].target_room",
+                f"exits[{index}].target_room",
                 room_path,
             )
-            target_spawn = self._require_string(
-                entry.get("target_spawn", "default"),
-                f"transitions[{index}].target_spawn",
+            target_entry = self._require_string(
+                entry.get("target_entry"),
+                f"exits[{index}].target_entry",
                 room_path,
             )
-            requires_key = max(0, int(entry.get("requires_key", 0)))
-            locked_message = str(entry.get("locked_message", "LOCKED"))
-            success_message = str(entry.get("success_message", "MOVED"))
 
-            transitions.append(
-                TransitionConfig(
-                    transition_id=transition_id,
-                    pos=pos,
+            exit_type = str(entry.get("type", "normal")).lower()
+            if exit_type not in SUPPORTED_EXIT_TYPES:
+                allowed = ", ".join(sorted(SUPPORTED_EXIT_TYPES))
+                raise MapValidationError(
+                    room_path,
+                    f"exits[{index}].type",
+                    f"unsupported exit type '{exit_type}', allowed: {allowed}",
+                )
+
+            raw_requires = entry.get("requires", {})
+            if raw_requires is None:
+                raw_requires = {}
+            if not isinstance(raw_requires, dict):
+                raise MapValidationError(room_path, f"exits[{index}].requires", "must be an object")
+            requires = self._validate_exit_requires(
+                raw_requires,
+                exit_type,
+                object_kinds,
+                f"exits[{index}].requires",
+                room_path,
+            )
+
+            exits.append(
+                ExitConfig(
+                    exit_id=exit_id,
                     direction=direction,
+                    tiles=tiles,
                     target_room_id=target_room_id,
-                    target_spawn=target_spawn,
-                    requires_key=requires_key,
-                    locked_message=locked_message,
-                    success_message=success_message,
+                    target_entry=target_entry,
+                    exit_type=exit_type,
+                    requires=requires,
+                    blocked_message=str(entry.get("blocked_message", "BLOCKED")),
+                    success_message=str(entry.get("success_message", "MOVED")),
                 )
             )
 
-        return transitions
+        return exits
 
-    def _validate_transition_targets(self) -> None:
+    def _validate_exit_requires(
+        self,
+        raw_requires: dict[str, Any],
+        exit_type: str,
+        object_kinds: dict[str, str],
+        field_path: str,
+        room_path: Path,
+    ) -> dict[str, Any]:
+        unknown_keys = sorted(set(raw_requires) - SUPPORTED_REQUIREMENT_KEYS)
+        if unknown_keys:
+            raise MapValidationError(
+                room_path,
+                field_path,
+                f"unsupported requirement keys: {', '.join(unknown_keys)}",
+            )
+
+        requires = dict(raw_requires)
+        if exit_type == "normal":
+            if requires:
+                raise MapValidationError(room_path, field_path, "normal exits cannot declare requirements")
+            return {}
+
+        if exit_type == "locked_key":
+            key_count = max(1, int(requires.get("key_count", 1)))
+            consume_key = bool(requires.get("consume_key", False))
+            return {"key_count": key_count, "consume_key": consume_key}
+
+        has_condition = False
+        if "button_pressed" in requires:
+            button_id = self._require_string(requires.get("button_pressed"), f"{field_path}.button_pressed", room_path)
+            if object_kinds.get(button_id) != "button":
+                raise MapValidationError(
+                    room_path,
+                    f"{field_path}.button_pressed",
+                    f"unknown button '{button_id}' in this room",
+                )
+            requires["button_pressed"] = button_id
+            has_condition = True
+        if "item" in requires:
+            requires["item"] = self._require_string(requires.get("item"), f"{field_path}.item", room_path)
+            has_condition = True
+        if not has_condition:
+            raise MapValidationError(
+                room_path,
+                field_path,
+                "conditional exits must declare at least one supported condition",
+            )
+        return requires
+
+    def _validate_exit_targets(self) -> None:
         for template in self.room_templates.values():
-            for index, transition in enumerate(template.transitions):
-                if transition.target_room_id not in self.room_ids:
+            for index, exit_config in enumerate(template.exits):
+                if exit_config.target_room_id not in self.room_ids:
                     raise MapValidationError(
                         self.room_file,
-                        f"rooms[{template.room_id}].transitions[{index}].target_room",
-                        f"unknown target room '{transition.target_room_id}'",
+                        f"rooms[{template.room_id}].exits[{index}].target_room",
+                        f"unknown target room '{exit_config.target_room_id}'",
                     )
-                target_template = self.template_by_room_id(transition.target_room_id)
-                if transition.target_spawn not in target_template.spawns:
+                target_template = self.template_by_room_id(exit_config.target_room_id)
+                if exit_config.target_entry not in target_template.spawns:
                     raise MapValidationError(
                         self.room_file,
-                        f"rooms[{template.room_id}].transitions[{index}].target_spawn",
+                        f"rooms[{template.room_id}].exits[{index}].target_entry",
                         (
-                            f"unknown spawn '{transition.target_spawn}' in room "
-                            f"'{transition.target_room_id}'"
+                            f"unknown entry '{exit_config.target_entry}' in room "
+                            f"'{exit_config.target_room_id}'"
                         ),
                     )
 
@@ -431,22 +518,6 @@ class RoomManager:
         if pos in wall_tiles:
             raise MapValidationError(source_path, field_path, "position overlaps a wall tile")
 
-    @staticmethod
-    def _validate_transition_edge(pos: GridPos, direction: str, field_path: str, source_path: Path) -> None:
-        x, y = pos
-        valid = (
-            (direction == "left" and x == 0)
-            or (direction == "right" and x == GRID_WIDTH - 1)
-            or (direction == "up" and y == 0)
-            or (direction == "down" and y == GRID_HEIGHT - 1)
-        )
-        if not valid:
-            raise MapValidationError(
-                source_path,
-                field_path,
-                f"transition direction '{direction}' requires the tile to be on the matching room edge",
-            )
-
     def build_room(self, coord: tuple[int, int]) -> RoomState:
         template = self.room_templates[coord]
 
@@ -504,7 +575,7 @@ class RoomManager:
             traps=traps,
             buttons=buttons,
             monsters=monsters,
-            transitions=list(template.transitions),
+            exits=list(template.exits),
         )
 
     def get_room(self, coord: tuple[int, int]) -> RoomState:
@@ -520,4 +591,4 @@ class RoomManager:
         return self.room_ids[room_id]
 
     def reset_room_cache(self) -> None:
-        self.rooms.clear()
+        self.rooms = {}

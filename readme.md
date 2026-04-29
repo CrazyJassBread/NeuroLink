@@ -146,9 +146,10 @@ python -m env_diy.main --rooms env_diy/map_data/dungeons/prototype/dungeon.json
 ```
 
 Controls:
-- Arrow keys: move a few pixels per frame / attempt room exit
-- Z: button A (`interact`)
-- X: button B (`defend`, reserved)
+- Hold arrow keys: move continuously a few pixels every frame / attempt room exit
+- If multiple directions are held, the most recently pressed direction wins
+- Z: button A (`interact`, edge-triggered on keydown)
+- X: button B (`defend`, reserved, edge-triggered on keydown)
 - Esc: quit
 
 ### DIY Map Format
@@ -189,14 +190,17 @@ Recommended structured room format:
     {"id": "npc_1", "kind": "npc", "pos": [7, 6], "text": "Example"},
     {"id": "monster_1", "kind": "monster", "pos": [7, 4], "monster_type": "chaser", "hp": 2, "damage": 1}
   ],
-  "transitions": [
+  "exits": [
     {
       "id": "east_exit",
-      "pos": [9, 4],
-      "direction": "right",
+      "direction": "east",
       "target_room": "room_1_0",
-      "target_spawn": "from_west",
-      "requires_key": 1
+      "target_entry": "from_west",
+      "type": "locked_key",
+      "requires": {
+        "key_count": 1,
+        "consume_key": true
+      }
     }
   ]
 }
@@ -205,12 +209,26 @@ Recommended structured room format:
 Validation currently checks:
 
 - layout size and supported tiles for a fixed `10 x 8` dungeon area
-- spawn/object/transition coordinates
+- spawn/object coordinates
 - all entity rows must remain within `0..7`; rows `8..9` are HUD and are illegal in config
 - duplicate room IDs and room coordinates
-- transition direction must match the room edge tile
-- transition target room and spawn references
+- exit direction must be one of `north/south/west/east`
+- exit target room and target entry references
+- conditional exits can only reference supported requirement fields
 - positions overlapping wall tiles
+
+Fixed two-tile exit regions:
+
+- north: `[(4, 0), (5, 0)]`
+- south: `[(4, 7), (5, 7)]`
+- west: `[(0, 3), (0, 4)]`
+- east: `[(9, 3), (9, 4)]`
+
+Exit types:
+
+- `normal`: no requirement, entering either exit tile and moving into the boundary transitions immediately
+- `locked_key`: checks `requires.key_count`; if `requires.consume_key=true`, the key count is reduced on success
+- `conditional`: currently supports `requires.button_pressed` and `requires.item`
 
 ### DIY Environment Semantics
 
@@ -218,31 +236,38 @@ Validation currently checks:
 
 - Static layout uses tile coordinates; player and monsters use top-left pixel coordinates.
 - Player speed is `2.0 px/step`.
-- Default monster speed is `1.6 px/step`, which is `player_speed * 0.8`.
+- Default monster speed is `1.0 px/step`, which is `player_speed * 0.5`.
 - `0 = no-op`, `1 = up`, `2 = down`, `3 = left`, `4 = right`, `5 = interact`, `6 = B/reserved`.
 - Every action advances exactly one environment tick.
 - `no-op` does not move the player, but monsters and environment logic still update.
 - `interact` does not move the player, but monsters and environment logic still update.
+- Human play uses held-key state only in the pygame loop; Gymnasium `env.step(action)` semantics stay unchanged.
 - Observation is a Gymnasium `Dict`.
 - `grid` remains a coarse `8 x 10` symbolic view of the dungeon area.
 - `player_position_px`, `player_tile`, `health`, `gold`, `keys`, `inventory_ids`, `monsters_position_px`, `monsters_tile`, and `monsters_active_mask` expose the fine-grained dynamic state.
 - HUD is visual only and is not part of the observation.
-- Room switching only occurs through configured `transitions`.
+- Room switching only occurs through configured `exits`.
 - Walking into a boundary from a non-exit tile returns a blocked event and keeps the player in place.
-- Locked exits can require keys through `requires_key`.
+- Exits are always two tiles wide or high, centered on the room edge.
+- Locked exits can require keys through `type=locked_key` and `requires.key_count`.
+- Conditional exits can require a pressed button or held item through `type=conditional`.
 - Trap, button, and exit checks use the player center tile derived from pixel position.
 - Chest and NPC interaction use center-tile adjacency.
+- Monster contact damage is prevented primarily by monster knockback and monster stun, not by a long player invincibility window.
+- A damaging monster collision tries to knock the monster back by one tile (`16px`), falling back to shorter legal distances when necessary.
+- After a valid monster collision, the monster enters a tick-based stun window and cannot move, chase, or deal contact damage until the stun expires.
+- `info["events"]` remains a list of string events; `info["event_details"]` now reports structured collision fields such as `monster_id`, `damage`, `monster_knockback_px`, `knockback_applied_px`, and `monster_stun_ticks`.
+- Failed door checks report blocked reasons in `info["events"]`, such as `blocked_locked` or `missing_requirement`.
 - When health reaches `0`, the current `step()` returns `terminated=True`, `truncated=False`, and `info["game_over"] == True`.
 - After termination, the environment sets an internal pending reset flag.
 - If the caller invokes `step()` again without calling `reset()`, the environment automatically resets first, then executes the new action, and reports `info["auto_reset"] == True`.
 
 The HUD displays:
 
-- current room
+- current room id
 - health
-- gold / keys
-- A / B button meanings
-- latest event message
+- gold
+- collected items
 
 ## Create Your Own Task
 

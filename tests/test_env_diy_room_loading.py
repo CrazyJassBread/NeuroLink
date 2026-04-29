@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from env_diy.constants import GRID_HEIGHT, GRID_WIDTH
-from env_diy.room import MapValidationError, RoomManager
+from env_diy.room import MapValidationError, RoomManager, exit_tiles_for_direction
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -24,8 +24,15 @@ class RoomManagerLoadingTests(unittest.TestCase):
         self.assertEqual(manager.start_room_id, "room_0_0")
         self.assertEqual(room.width, GRID_WIDTH)
         self.assertEqual(room.height, GRID_HEIGHT)
-        self.assertEqual(len(room.transitions), 3)
-        self.assertTrue(any(transition.requires_key == 1 for transition in room.transitions))
+        self.assertEqual(len(room.exits), 3)
+        self.assertTrue(any(exit_config.exit_type == "locked_key" for exit_config in room.exits))
+        self.assertTrue(any(exit_config.exit_type == "conditional" for exit_config in room.exits))
+
+    def test_exit_tiles_match_fixed_two_tile_rules(self) -> None:
+        self.assertEqual(exit_tiles_for_direction("north"), ((4, 0), (5, 0)))
+        self.assertEqual(exit_tiles_for_direction("south"), ((4, 7), (5, 7)))
+        self.assertEqual(exit_tiles_for_direction("west"), ((0, 3), (0, 4)))
+        self.assertEqual(exit_tiles_for_direction("east"), ((9, 3), (9, 4)))
 
     def test_reset_room_cache_rebuilds_state(self) -> None:
         manager = RoomManager(STRUCTURED_DUNGEON)
@@ -68,7 +75,7 @@ class RoomManagerLoadingTests(unittest.TestCase):
         self.assertIn("objects[0].pos", str(ctx.exception))
         self.assertIn("HUD", str(ctx.exception))
 
-    def test_invalid_transition_target_rejected(self) -> None:
+    def test_invalid_exit_target_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             dungeon_path = self._write_dungeon(
@@ -82,13 +89,13 @@ class RoomManagerLoadingTests(unittest.TestCase):
                             "coord": [0, 0],
                             "layout": self._empty_layout(),
                             "spawns": {"default": [0, 4]},
-                            "transitions": [
+                            "exits": [
                                 {
-                                    "id": "exit_1",
-                                    "pos": [0, 4],
-                                    "direction": "left",
+                                    "id": "west_exit",
+                                    "direction": "west",
                                     "target_room": "missing_room",
-                                    "target_spawn": "default",
+                                    "target_entry": "default",
+                                    "type": "normal",
                                 }
                             ],
                         },
@@ -102,7 +109,7 @@ class RoomManagerLoadingTests(unittest.TestCase):
         self.assertIn("target_room", str(ctx.exception))
         self.assertIn("missing_room", str(ctx.exception))
 
-    def test_transition_must_be_on_matching_edge(self) -> None:
+    def test_conditional_exit_button_reference_must_exist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             dungeon_path = self._write_dungeon(
@@ -116,13 +123,14 @@ class RoomManagerLoadingTests(unittest.TestCase):
                             "coord": [0, 0],
                             "layout": self._empty_layout(),
                             "spawns": {"default": [1, 1]},
-                            "transitions": [
+                            "exits": [
                                 {
-                                    "id": "exit_1",
-                                    "pos": [4, 4],
-                                    "direction": "left",
+                                    "id": "south_exit",
+                                    "direction": "south",
                                     "target_room": "room_b",
-                                    "target_spawn": "default",
+                                    "target_entry": "north_entry",
+                                    "type": "conditional",
+                                    "requires": {"button_pressed": "missing_button"},
                                 }
                             ],
                         },
@@ -131,9 +139,9 @@ class RoomManagerLoadingTests(unittest.TestCase):
                         "file": "rooms/room_b.json",
                         "payload": {
                             "id": "room_b",
-                            "coord": [1, 0],
+                            "coord": [0, 1],
                             "layout": self._empty_layout(),
-                            "spawns": {"default": [1, 1]},
+                            "spawns": {"north_entry": [4, 1]},
                         },
                     },
                 ],
@@ -142,7 +150,7 @@ class RoomManagerLoadingTests(unittest.TestCase):
             with self.assertRaises(MapValidationError) as ctx:
                 RoomManager(dungeon_path)
 
-        self.assertIn("matching room edge", str(ctx.exception))
+        self.assertIn("missing_button", str(ctx.exception))
 
     def _write_dungeon(self, root: Path, start_room: str, rooms: list[dict]) -> Path:
         room_files: list[str] = []
