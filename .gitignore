@@ -1,5 +1,6 @@
 rl_model/
 log/
+rl/outputs/*.jsonl
 .venv/
 __pycache__/
 *.pyc
@@ -9,4 +10,9 @@ __pycache__/
 setup.md
 
 .pytest_cache/
+
+.ruff_cache/
+
+docs/
+.codex/
 

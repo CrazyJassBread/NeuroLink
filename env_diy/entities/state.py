@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
-from .constants import (
+from ..core.constants import (
     ENTITY_SIZE_PX,
     ITEM_NAME_TO_ID,
     MAP_PIXEL_HEIGHT,
@@ -21,6 +22,18 @@ GridPos = tuple[int, int]
 PixelPos = tuple[float, float]
 
 
+class EquipmentSlot(str, Enum):
+    A = "A"
+    B = "B"
+
+
+class ToolType(str, Enum):
+    INTERACT = "interact"
+    SHIELD = "shield"
+    SWORD = "sword"
+    NONE = "none"
+
+
 @dataclass
 class PlayerState:
     position_px: PixelPos
@@ -31,8 +44,31 @@ class PlayerState:
     gold: int = PLAYER_GOLD_DEFAULT
     keys: int = PLAYER_KEYS_DEFAULT
     items: list[str] = field(default_factory=lambda: ["sword", "shield"])
-    action_a_label: str = "INTERACT"
-    action_b_label: str = "DEFEND"
+    tools: list[str] = field(default_factory=lambda: [ToolType.INTERACT.value, ToolType.SHIELD.value])
+    equipped: dict[str, str] = field(
+        default_factory=lambda: {
+            EquipmentSlot.A.value: ToolType.INTERACT.value,
+            EquipmentSlot.B.value: ToolType.SHIELD.value,
+        }
+    )
+    action_a_label: str = ToolType.INTERACT.value.upper()
+    action_b_label: str = ToolType.SHIELD.value.upper()
+
+    def equipped_tool(self, slot: EquipmentSlot) -> str:
+        return self.equipped.get(slot.value, ToolType.NONE.value)
+
+    def equipped_tool_label(self, slot_name: str) -> str:
+        return self.equipped.get(slot_name, ToolType.NONE.value)
+
+    def equip_tool(self, slot: EquipmentSlot, tool: ToolType | str) -> None:
+        tool_name = tool.value if isinstance(tool, ToolType) else str(tool)
+        if tool_name not in self.tools:
+            self.tools.append(tool_name)
+        self.equipped[slot.value] = tool_name
+        if slot == EquipmentSlot.A:
+            self.action_a_label = tool_name.upper()
+        elif slot == EquipmentSlot.B:
+            self.action_b_label = tool_name.upper()
 
 
 @dataclass

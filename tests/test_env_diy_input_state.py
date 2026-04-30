@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from env_diy.constants import ACTION_A, ACTION_LEFT, ACTION_NOOP, ACTION_RIGHT, ACTION_UP
-from env_diy.input_state import HumanInputState
-from env_diy.pygame_compat import pygame
+from env_diy.core.constants import ACTION_A, ACTION_B, ACTION_LEFT, ACTION_NOOP, ACTION_RIGHT, ACTION_UP
+from env_diy.input import HumanInputState
+from env_diy.utils.pygame_compat import pygame
 
 
 class HumanInputStateTests(unittest.TestCase):
@@ -43,6 +43,28 @@ class HumanInputStateTests(unittest.TestCase):
         state.handle_keyup(pygame.K_z)
         state.handle_keydown(pygame.K_z)
         self.assertEqual(state.resolve_action(), ACTION_A)
+
+    def test_held_b_repeats_until_keyup(self) -> None:
+        state = HumanInputState()
+
+        state.handle_keydown(pygame.K_x)
+
+        self.assertEqual(state.resolve_action(), ACTION_B)
+        self.assertEqual(state.resolve_action(), ACTION_B)
+
+        state.handle_keyup(pygame.K_x)
+        self.assertEqual(state.resolve_action(), ACTION_NOOP)
+
+    def test_held_b_takes_priority_over_held_direction(self) -> None:
+        state = HumanInputState()
+
+        state.handle_keydown(pygame.K_RIGHT)
+        state.handle_keydown(pygame.K_x)
+
+        self.assertEqual(state.resolve_action(), ACTION_B)
+
+        state.handle_keyup(pygame.K_x)
+        self.assertEqual(state.resolve_action(), ACTION_RIGHT)
 
 
 if __name__ == "__main__":

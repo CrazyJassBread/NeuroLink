@@ -1,4 +1,4 @@
-from .maps import (
+from .rooms import (
     EXIT_DIRECTION_TILES,
     ENTRY_SPAWN_TILE_CANDIDATES,
     LAYOUT_TILES,

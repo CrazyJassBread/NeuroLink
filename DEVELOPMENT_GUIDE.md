@@ -258,6 +258,19 @@ Current `env_diy` geometry policy:
 - map pixel height: 128
 - HUD pixel height: 32
 
+Current `env_diy` package structure:
+
+- `env_diy/envs/`: Gymnasium environment entry points and observation encoding.
+- `env_diy/core/`: constants and fixed geometry/action values.
+- `env_diy/entities/`: entity state, coordinate helpers, monster state, and monster AI updates.
+- `env_diy/maps/`: room/map schema, parser, validation, templates, and `RoomManager`.
+- `env_diy/rendering/`: frame renderer and procedural pixel sprites.
+- `env_diy/input/`: human-play input state helpers.
+- `env_diy/app/`: pygame interactive runner.
+- `env_diy/utils/`: small compatibility utilities.
+
+Prefer new code importing from these subpackages. Thin top-level compatibility modules such as `env_diy.env`, `env_diy.room`, and `env_diy.renderer` may remain temporarily for older tests or examples.
+
 ## 8. Rendering Policy
 
 `env_diy` rendering must remain original and procedural. Do not copy or imitate commercial game sprites, maps, or UI assets.
@@ -269,7 +282,7 @@ Current renderer expectations:
 - Use lightweight primitives or small code-defined pixel icons instead of external image assets.
 - Keep player, monsters, chests, exits/doors, keys, coins/gold, heal items, traps, and buttons visually distinguishable inside a `16 x 16` tile.
 - Normal exits, locked-key doors, and conditional doors should remain visually distinct, and two-tile exits should read as one connected doorway.
-- HUD rendering should stay compact and show room id, HP, gold, and collected items without reintroducing a red health bar.
+- HUD rendering should stay compact and show room id, HP, gold, collected items, and equipped A/B tools without reintroducing a red health bar.
 
 Recommended render smoke test:
 
@@ -286,17 +299,29 @@ Exit policy for `env_diy`:
 - west exit tiles: `(0, 3)` and `(0, 4)`
 - east exit tiles: `(9, 3)` and `(9, 4)`
 - room connectivity must still come from map config; only the exit shape/placement rule is centralized
+- directional target entries use the first non-wall candidate from:
+  - `north`: `(4, 1)`, `(5, 1)`
+  - `south`: `(4, 6)`, `(5, 6)`
+  - `west`: `(1, 3)`, `(1, 4)`
+  - `east`: `(8, 3)`, `(8, 4)`
+- supported directional aliases are `<direction>`, `from_<direction>`, and `<direction>_entry`
+- missing `target_entry` defaults to the opposite exit direction
+- if all directional entry candidates are walls, validation must fail instead of silently spawning elsewhere
 
 ## 8. Input and Tick Semantics
 
 For `env_diy`, keep these rules stable unless a task explicitly changes them and also updates tests/docs:
 
 - `env.step(action)` always advances exactly one environment tick.
-- `0 = no-op`, `1 = up`, `2 = down`, `3 = left`, `4 = right`, `5 = interact`, `6 = B/reserved`.
-- `no-op`, `interact`, and `B` still advance monster AI, stun timers, collision checks, reward logic, and info generation.
+- `0 = no-op`, `1 = up`, `2 = down`, `3 = left`, `4 = right`, `5 = A/interact`, `6 = B/shield`.
+- `no-op`, A/interact, and B/shield still advance monster AI, stun timers, collision checks, reward logic, and info generation.
+- Keep `DungeonEnv.step(action)` as a simple `Discrete(7)` action API unless a task explicitly approves a broader migration.
+- A and B dispatch through `PlayerState.equipped`: default A is `interact`, default B is `shield`.
+- Equipment/tool state belongs in player state, `info`, and HUD. Do not add it to observations without an explicit observation-space migration.
 - Human play may translate held keyboard state into per-frame actions, but that logic belongs in the interactive runner or input helper, not in the Gymnasium API itself.
 - In the pygame runner, held direction keys should repeat movement every frame.
-- If multiple direction keys are held, the most recently pressed direction should win unless a different policy is intentionally documented and tested.
+- If B is held in the pygame runner, it repeats `ACTION_B` and takes priority over movement; this is the v1 "stand and guard" policy because `Discrete(7)` cannot encode move+shield simultaneously.
+- If multiple direction keys are held and B is not held, the most recently pressed direction should win unless a different policy is intentionally documented and tested.
 - Default monster speed should remain `player_speed * 0.5` unless a specific monster overrides its own speed in config.
 
 ## 9. Dynamic Entity Collision Policy
@@ -314,6 +339,9 @@ Dynamic entities use pixel/world coordinates. Static map content remains tile-ba
 Monster contact damage policy:
 
 - A valid monster overlap deals damage once and attempts to knock the monster away from the player.
+- If shield is active for that tick, contact damage is prevented and the monster still follows the same knockback/stun path.
+- Shield blocks should emit `shield_block` in `info["events"]` plus structured detail with monster id, prevented damage, knockback pixels, and stun ticks.
+- Shield must not kill monsters or grant attack reward unless a later task explicitly adds shield offense.
 - The preferred knockback distance is one full tile (`16px`), but the environment may fall back to shorter legal distances such as `12px`, `8px`, `4px`, or `0px`.
 - After a valid hit, the monster enters a tick-based stun window and must not move, chase, or apply contact damage while stunned.
 - Stun duration must be based on environment ticks, not wall-clock time.
@@ -326,6 +354,9 @@ Exit and door policy:
 - Distinguish `normal`, `locked_key`, and `conditional` exits in both config and render output.
 - `normal` exits have no requirements.
 - `locked_key` exits should use explicit requirement fields such as `key_count` and optional `consume_key`.
+- Locked-key doors should keep static config separate from runtime state. Runtime `unlocked/opened` state resets with the room cache.
+- A locked-key door consumes keys only when it first unlocks; later traversals while open must not consume keys again.
+- Rendering should use locked art until runtime `opened=True`, then show a distinct open/unlocked locked-door variant.
 - `conditional` exits should use explicit requirement fields such as `button_pressed` or `item`.
 - When requirements are not satisfied, the player must remain in the current room and `info` should expose a blocked reason such as `blocked_locked` or `missing_requirement`.
 
@@ -384,7 +415,7 @@ Optional future:
 Default speed policy:
 
 - player speed unit: pixels per environment step
-- default monster speed: `player_speed * 0.8`
+- default monster speed: `player_speed * 0.5`
 ### 8.4 Traps
 
 When stepped on:
@@ -430,7 +461,8 @@ Keys can:
 Room transitions must be configuration-driven.
 
 - only configured exits may change rooms
-- exits should declare direction and target spawn
+- exits should declare direction and target room; `target_entry` may be directional or a named spawn
+- directional entries should place the player just inside the target doorway, never on the edge exit tile
 - colliding with a map boundary from a non-exit tile must not change rooms
 - locked exits should report a clear blocked event when requirements are not met
 
@@ -444,8 +476,8 @@ ID	Action
 2	down
 3	left
 4	right
-5	button A (use for attack or interact)
-6	button B (use for shield or reserved for future)
+5	button A (default equipped tool: interact)
+6	button B (default equipped tool: shield)
 
 Do not change without updating tests/docs.
 
@@ -584,6 +616,17 @@ README should explain:
 - observation space
 - config format
 - tests
+
+## 14.1 RL Smoke Script Policy
+
+Lightweight RL smoke code should live under `rl/`.
+
+- Prefer direct `env_diy.envs.DungeonEnv` construction through a small env factory helper.
+- Keep smoke scripts dependency-light: standard library, numpy, and Gymnasium are enough for random rollout validation.
+- Do not require rendering by default; headless CI/test runs should work without opening a window.
+- Store reusable helpers in `rl/utils/` and episode-level smoke outputs under `rl/outputs/`.
+- Random policy smoke scripts should validate reset/step returns, sampled actions, observation-space compatibility, multi-episode rollout, and output logging.
+- More complete algorithms can be added later as separate scripts, but should not remove the random-policy smoke path.
 ## 15. File Structure Recommendation
 
 Example:

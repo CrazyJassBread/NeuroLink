@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .game import ZeldaLikeGame
+from .app import ZeldaLikeGame
 
 
 def main() -> None:

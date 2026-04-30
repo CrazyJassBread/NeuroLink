@@ -5,17 +5,19 @@ from pathlib import Path
 
 import numpy as np
 
-from env_diy.constants import (
+from env_diy.core.constants import (
+    COLOR_EXIT_LOCKED,
     HUD_PIXEL_Y,
     INTERNAL_HEIGHT,
     INTERNAL_WIDTH,
     TILE_SIZE,
 )
 from env_diy.entities import ButtonState, ChestState, NPCState, PlayerState, TrapState
-from env_diy.env import DungeonEnv
-from env_diy.monsters import MonsterState
-from env_diy.renderer import render_frame
-from env_diy.room import ExitConfig, RoomState
+from env_diy.entities.monsters import MonsterState
+from env_diy.envs import DungeonEnv
+from env_diy.maps import ExitConfig, ExitRuntimeState, RoomState
+from env_diy.rendering import render_frame
+from env_diy.rendering.sprites import draw_exit
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +35,15 @@ class RendererTests(unittest.TestCase):
 
         self.assertEqual(frame.shape, (INTERNAL_HEIGHT, INTERNAL_WIDTH, 3))
 
+    def test_legacy_import_paths_still_work(self) -> None:
+        from env_diy.env import DungeonEnv as LegacyDungeonEnv
+        from env_diy.renderer import render_frame as legacy_render_frame
+        from env_diy.room import RoomManager as LegacyRoomManager
+
+        self.assertIs(LegacyDungeonEnv, DungeonEnv)
+        self.assertIs(legacy_render_frame, render_frame)
+        self.assertEqual(LegacyRoomManager(STRUCTURED_DUNGEON).start_room_id, "room_0_0")
+
     def test_hud_area_exists_and_status_text_is_available(self) -> None:
         env = DungeonEnv(STRUCTURED_DUNGEON)
         env.reset()
@@ -47,7 +58,9 @@ class RendererTests(unittest.TestCase):
         self.assertIn("R:", line_1)
         self.assertIn("HP:", line_1)
         self.assertIn("G:12", line_1)
-        self.assertEqual(line_2, "I:key,bow")
+        self.assertIn("I:key,bow", line_2)
+        self.assertIn("A:interact", line_2)
+        self.assertIn("B:shield", line_2)
         self.assertGreater(_unique_color_count(hud_area), 3)
         self.assertFalse(np.array_equal(hud_area[:16], map_area[:16]))
 
@@ -139,6 +152,37 @@ class RendererTests(unittest.TestCase):
         self.assertFalse(np.array_equal(normal_exit, locked_exit))
         self.assertFalse(np.array_equal(normal_exit[:16], conditional_exit))
         self.assertFalse(np.array_equal(locked_exit[:16], conditional_exit[:, :16]))
+
+    def test_locked_exit_opened_runtime_state_renders_differently(self) -> None:
+        room = _base_room()
+        exit_config = ExitConfig("east_exit", "east", ((9, 3), (9, 4)), "room_b", "west", "locked_key")
+        room.exits = [exit_config]
+        room.exit_states[exit_config.exit_id] = ExitRuntimeState(unlocked=False, opened=False)
+
+        locked_frame = render_frame(room, PlayerState(position_px=(16.0, 16.0)))
+
+        room.exit_states[exit_config.exit_id] = ExitRuntimeState(unlocked=True, opened=True)
+        opened_frame = render_frame(room, PlayerState(position_px=(16.0, 16.0)))
+
+        locked_exit = locked_frame[3 * TILE_SIZE : 5 * TILE_SIZE, 9 * TILE_SIZE : 10 * TILE_SIZE]
+        opened_exit = opened_frame[3 * TILE_SIZE : 5 * TILE_SIZE, 9 * TILE_SIZE : 10 * TILE_SIZE]
+        self.assertFalse(np.array_equal(locked_exit, opened_exit))
+
+    def test_locked_opened_sprite_is_distinct_from_other_exit_types(self) -> None:
+        tiles = ((4, 7), (5, 7))
+        locked_frame = np.zeros((INTERNAL_HEIGHT, INTERNAL_WIDTH, 3), dtype=np.uint8)
+        opened_frame = np.zeros((INTERNAL_HEIGHT, INTERNAL_WIDTH, 3), dtype=np.uint8)
+        normal_frame = np.zeros((INTERNAL_HEIGHT, INTERNAL_WIDTH, 3), dtype=np.uint8)
+        conditional_frame = np.zeros((INTERNAL_HEIGHT, INTERNAL_WIDTH, 3), dtype=np.uint8)
+
+        draw_exit(locked_frame, tiles, "locked_key", COLOR_EXIT_LOCKED, opened=False)
+        draw_exit(opened_frame, tiles, "locked_key", COLOR_EXIT_LOCKED, opened=True)
+        draw_exit(normal_frame, tiles, "normal", COLOR_EXIT_LOCKED, opened=True)
+        draw_exit(conditional_frame, tiles, "conditional", COLOR_EXIT_LOCKED, opened=True)
+
+        self.assertFalse(np.array_equal(locked_frame, opened_frame))
+        self.assertFalse(np.array_equal(opened_frame, normal_frame))
+        self.assertFalse(np.array_equal(opened_frame, conditional_frame))
 
     def test_all_supported_room_entities_render_headless(self) -> None:
         room = _base_room()

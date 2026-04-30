@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from env_diy.constants import GRID_HEIGHT, GRID_WIDTH
-from env_diy.room import MapValidationError, RoomManager, exit_tiles_for_direction
+from env_diy.core.constants import GRID_HEIGHT, GRID_WIDTH
+from env_diy.maps import MapValidationError, RoomManager, exit_tiles_for_direction
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +108,93 @@ class RoomManagerLoadingTests(unittest.TestCase):
 
         self.assertIn("target_room", str(ctx.exception))
         self.assertIn("missing_room", str(ctx.exception))
+
+    def test_missing_target_entry_defaults_to_opposite_direction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            dungeon_path = self._write_dungeon(
+                root,
+                start_room="room_a",
+                rooms=[
+                    {
+                        "file": "rooms/room_a.json",
+                        "payload": {
+                            "id": "room_a",
+                            "coord": [0, 0],
+                            "layout": self._empty_layout(),
+                            "spawns": {"default": [1, 1]},
+                            "exits": [
+                                {
+                                    "id": "east_exit",
+                                    "direction": "east",
+                                    "target_room": "room_b",
+                                    "type": "normal",
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "file": "rooms/room_b.json",
+                        "payload": {
+                            "id": "room_b",
+                            "coord": [1, 0],
+                            "layout": self._empty_layout(),
+                            "spawns": {"default": [1, 1]},
+                        },
+                    },
+                ],
+            )
+
+            manager = RoomManager(dungeon_path)
+
+        room = manager.get_room((0, 0))
+        self.assertEqual(room.exits[0].target_entry, "west")
+
+    def test_directional_target_entry_rejects_blocked_spawn_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            blocked_layout = self._empty_layout()
+            blocked_layout[3] = ".#........"
+            blocked_layout[4] = ".#........"
+            dungeon_path = self._write_dungeon(
+                root,
+                start_room="room_a",
+                rooms=[
+                    {
+                        "file": "rooms/room_a.json",
+                        "payload": {
+                            "id": "room_a",
+                            "coord": [0, 0],
+                            "layout": self._empty_layout(),
+                            "spawns": {"default": [1, 1]},
+                            "exits": [
+                                {
+                                    "id": "east_exit",
+                                    "direction": "east",
+                                    "target_room": "room_b",
+                                    "target_entry": "west",
+                                    "type": "normal",
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "file": "rooms/room_b.json",
+                        "payload": {
+                            "id": "room_b",
+                            "coord": [1, 0],
+                            "layout": blocked_layout,
+                            "spawns": {"default": [2, 2]},
+                        },
+                    },
+                ],
+            )
+
+            with self.assertRaises(MapValidationError) as ctx:
+                RoomManager(dungeon_path)
+
+        self.assertIn("target_entry", str(ctx.exception))
+        self.assertIn("no valid non-wall spawn tile", str(ctx.exception))
 
     def test_conditional_exit_button_reference_must_exist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
