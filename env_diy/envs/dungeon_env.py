@@ -20,6 +20,7 @@ from ..core.constants import (
     MAP_PIXEL_WIDTH,
     MESSAGE_DEFAULT,
     MONSTER_HIT_KNOCKBACK_PX,
+    MONSTER_KILL_GOLD_REWARD,
     MONSTER_STUN_TICKS,
     MOVE_ACTION_TO_DIRECTION,
     SCREEN_HEIGHT,
@@ -115,6 +116,12 @@ class DungeonEnv(gym.Env):
                     shape=(self.max_monster_slots,),
                     dtype=np.uint8,
                 ),
+                "monsters_hp": spaces.Box(
+                    low=0,
+                    high=99,
+                    shape=(self.max_monster_slots,),
+                    dtype=np.int32,
+                ),
             }
         )
 
@@ -189,11 +196,15 @@ class DungeonEnv(gym.Env):
             self.pending_reset = True
             self.last_message = "GAME OVER"
             events.append("game_over")
+        elif self._all_chests_opened():
+            terminated = True
+            self.pending_reset = True
+            self.last_message = "VICTORY"
+            events.append("victory")
+            reward += 1.0
 
         observation = self._get_obs()
         info = self._get_info(events=events, event_details=event_details, auto_reset=auto_reset)
-        if terminated:
-            info["game_over"] = True
         return observation, reward, terminated, truncated, info
 
     def render(self) -> np.ndarray:
@@ -450,48 +461,95 @@ class DungeonEnv(gym.Env):
         *,
         shield_active: bool = False,
     ) -> float:
+        reward = 0.0
+        monster_to_remove: str | None = None
         for monster in self.room.monsters.values():
             if monster.stun_ticks_remaining > 0:
                 continue
-            if aabb_overlap(
+            if not aabb_overlap(
                 self.player.position_px,
                 self.player.size_px,
                 monster.position_px,
                 monster.size_px,
             ):
-                if shield_active:
-                    knockback_applied_px = self._apply_monster_knockback(monster)
-                    monster.stun_ticks_remaining = MONSTER_STUN_TICKS
-                    self.last_message = "SHIELD BLOCK"
+                continue
+            if shield_active:
+                monster.hp -= 1
+                knockback_applied_px = self._apply_monster_knockback(monster)
+                monster.stun_ticks_remaining = MONSTER_STUN_TICKS
+                if monster.hp <= 0:
+                    monster_to_remove = monster.monster_id
+                    self.player.gold += MONSTER_KILL_GOLD_REWARD
+                    self.last_message = f"SHIELD KILL {monster.monster_type.upper()} +{MONSTER_KILL_GOLD_REWARD}G"
+                    events.append("monster_killed")
+                    event_details.append(
+                        {
+                            "type": "monster_killed",
+                            "monster_id": monster.monster_id,
+                            "monster_type": monster.monster_type,
+                            "gold_reward": MONSTER_KILL_GOLD_REWARD,
+                            "killed_by": "shield",
+                        }
+                    )
+                    reward += 0.3
+                else:
+                    self.last_message = f"SHIELD BLOCK ({monster.hp}HP LEFT)"
                     events.append("shield_block")
                     event_details.append(
                         {
                             "type": "shield_block",
                             "monster_id": monster.monster_id,
                             "damage_prevented": monster.damage,
+                            "monster_hp_remaining": monster.hp,
                             "monster_knockback_px": MONSTER_HIT_KNOCKBACK_PX,
                             "knockback_applied_px": knockback_applied_px,
                             "monster_stun_ticks": MONSTER_STUN_TICKS,
                         }
                     )
-                    return 0.0
-                self.player.health = max(0, self.player.health - monster.damage)
-                knockback_applied_px = self._apply_monster_knockback(monster)
-                monster.stun_ticks_remaining = MONSTER_STUN_TICKS
-                self.last_message = f"HIT -{monster.damage}HP"
+                break
+            # Player takes damage from monster
+            self.player.health = max(0, self.player.health - monster.damage)
+            # Monster also takes damage from contact
+            monster.hp -= 1
+            knockback_applied_px = self._apply_monster_knockback(monster)
+            monster.stun_ticks_remaining = MONSTER_STUN_TICKS
+            reward -= 0.4
+            if monster.hp <= 0:
+                # Monster killed
+                monster_to_remove = monster.monster_id
+                self.player.gold += MONSTER_KILL_GOLD_REWARD
+                self.last_message = f"KILLED {monster.monster_type.upper()} +{MONSTER_KILL_GOLD_REWARD}G"
+                events.append("monster_killed")
+                event_details.append(
+                    {
+                        "type": "monster_killed",
+                        "monster_id": monster.monster_id,
+                        "monster_type": monster.monster_type,
+                        "gold_reward": MONSTER_KILL_GOLD_REWARD,
+                        "damage_taken": monster.damage,
+                    }
+                )
+                reward += 0.3
+            else:
+                self.last_message = f"HIT -{monster.damage}HP ({monster.hp}HP LEFT)"
                 events.append("monster_hit")
+                events.append("monster_damaged")
                 event_details.append(
                     {
                         "type": "monster_collision",
                         "monster_id": monster.monster_id,
                         "damage": monster.damage,
+                        "monster_hp_remaining": monster.hp,
                         "monster_knockback_px": MONSTER_HIT_KNOCKBACK_PX,
                         "knockback_applied_px": knockback_applied_px,
                         "monster_stun_ticks": MONSTER_STUN_TICKS,
                     }
                 )
-                return -0.4
-        return 0.0
+            # Only process one collision per step
+            break
+        if monster_to_remove is not None:
+            del self.room.monsters[monster_to_remove]
+        return reward
 
     def _get_obs(self) -> dict[str, np.ndarray]:
         grid = room_observation(self.room, self.player)
@@ -499,6 +557,7 @@ class DungeonEnv(gym.Env):
         monster_positions = np.full((self.max_monster_slots, 2), -1.0, dtype=np.float32)
         monster_tiles = np.full((self.max_monster_slots, 2), -1, dtype=np.int32)
         monster_mask = np.zeros((self.max_monster_slots,), dtype=np.uint8)
+        monster_hp = np.zeros((self.max_monster_slots,), dtype=np.int32)
 
         for index, monster in enumerate(self.room.monsters.values()):
             if index >= self.max_monster_slots:
@@ -506,6 +565,7 @@ class DungeonEnv(gym.Env):
             monster_positions[index] = np.asarray(monster.position_px, dtype=np.float32)
             monster_tiles[index] = np.asarray(monster.tile_pos, dtype=np.int32)
             monster_mask[index] = 1
+            monster_hp[index] = monster.hp
 
         return {
             "grid": grid,
@@ -518,6 +578,7 @@ class DungeonEnv(gym.Env):
             "monsters_position_px": monster_positions,
             "monsters_tile": monster_tiles,
             "monsters_active_mask": monster_mask,
+            "monsters_hp": monster_hp,
         }
 
     def _get_info(
@@ -546,7 +607,21 @@ class DungeonEnv(gym.Env):
         }
         if auto_reset:
             info["auto_reset"] = True
+        if "victory" in events:
+            info["victory"] = True
+        if "game_over" in events:
+            info["game_over"] = True
         return info
+
+    def _all_chests_opened(self) -> bool:
+        total_chests = 0
+        for coord in self.room_manager.room_templates:
+            room = self.room_manager.get_room(coord)
+            for chest in room.chests.values():
+                total_chests += 1
+                if not chest.is_open:
+                    return False
+        return total_chests > 0
 
     def _player_tile(self) -> tuple[int, int]:
         return tile_from_position_px(self.player.position_px, self.player.size_px)
@@ -560,7 +635,7 @@ class DungeonEnv(gym.Env):
         }
         world_blockers = self.room.blocking_tiles() | other_monster_tiles
         previous_position = monster.position_px
-        for distance in (float(MONSTER_HIT_KNOCKBACK_PX), 12.0, 8.0, 4.0, 0.0):
+        for distance in (float(MONSTER_HIT_KNOCKBACK_PX), 12.0, 8.0, 4.0):
             candidate_position = move_with_tile_collisions(
                 previous_position,
                 monster.size_px,
@@ -578,8 +653,31 @@ class DungeonEnv(gym.Env):
                     monster.position_px[1] - previous_position[1],
                 )
                 return distance
+
+        # Fallback: monster couldn't be knocked back (stuck against wall/edge).
+        # Move the player away from the monster instead to break overlap.
+        self._apply_player_separation(monster)
         monster.last_move_delta_px = (0.0, 0.0)
         return 0.0
+
+    def _apply_player_separation(self, monster: MonsterState) -> None:
+        """Move the player away from the monster when knockback fails."""
+        player_center = entity_center_px(self.player.position_px, self.player.size_px)
+        monster_center = entity_center_px(monster.position_px, monster.size_px)
+        dx = player_center[0] - monster_center[0]
+        dy = player_center[1] - monster_center[1]
+        distance = math.hypot(dx, dy)
+        if distance <= 1e-6:
+            dx, dy = 0.0, -1.0
+            distance = 1.0
+        sep_dx = (dx / distance) * TILE_SIZE
+        sep_dy = (dy / distance) * TILE_SIZE
+        self.player.position_px = move_with_tile_collisions(
+            self.player.position_px,
+            self.player.size_px,
+            (sep_dx, sep_dy),
+            self.room.blocking_tiles(),
+        )
 
     def _monster_knockback_vector(self, monster: MonsterState) -> tuple[float, float]:
         player_center = entity_center_px(self.player.position_px, self.player.size_px)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from ..core.constants import GRID_HEIGHT, GRID_WIDTH, MONSTER_SIZE_PX, MONSTER_SPEED_PX_PER_STEP
+from ..core.constants import GRID_HEIGHT, GRID_WIDTH, MONSTER_DEFAULT_HP, MONSTER_SIZE_PX, MONSTER_SPEED_PX_PER_STEP
 from .state import (
     GridPos,
     PixelPos,
@@ -20,7 +20,8 @@ class MonsterState:
     position_px: PixelPos
     size_px: int = MONSTER_SIZE_PX
     speed_px_per_step: float = MONSTER_SPEED_PX_PER_STEP
-    hp: int = 1
+    hp: int = MONSTER_DEFAULT_HP
+    max_hp: int = MONSTER_DEFAULT_HP
     damage: int = 1
     ambush_range_tiles: int = 2
     patrol_span_tiles: int = 1
@@ -47,13 +48,15 @@ def build_monster_from_dict(data: dict) -> MonsterState:
     position_px = tile_to_top_left_px(spawn_tile)
 
     patrol_span_tiles = max(1, int(data.get("patrol_span", 16)) // 16)
+    hp_val = max(1, int(data.get("hp", MONSTER_DEFAULT_HP)))
     monster = MonsterState(
         monster_id=str(data.get("id", "")),
         monster_type=monster_type,
         position_px=position_px,
         size_px=max(1, int(data.get("size_px", MONSTER_SIZE_PX))),
         speed_px_per_step=float(data.get("speed_px_per_step", MONSTER_SPEED_PX_PER_STEP)),
-        hp=max(1, int(data.get("hp", 1))),
+        hp=hp_val,
+        max_hp=hp_val,
         damage=max(1, int(data.get("damage", 1))),
         ambush_range_tiles=max(1, int(data.get("ambush_range", 2))),
         patrol_span_tiles=patrol_span_tiles,

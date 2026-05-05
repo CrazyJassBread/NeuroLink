@@ -35,6 +35,8 @@ class ZeldaLikeGame:
         pygame.display.flip()
 
     def run(self) -> None:
+        game_over = False
+        victory = False
         while self.running:
             self.clock.tick(TARGET_FPS)
 
@@ -43,16 +45,34 @@ class ZeldaLikeGame:
                     self.running = False
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     self.running = False
+                elif event.type == pygame.KEYDOWN and (game_over or victory):
+                    # Any key restarts after game over or victory
+                    self.env.reset()
+                    game_over = False
+                    victory = False
                 elif event.type == pygame.KEYDOWN:
                     self.input_state.handle_keydown(event.key)
                 elif event.type == pygame.KEYUP:
                     self.input_state.handle_keyup(event.key)
 
-            if self.running:
+            if self.running and not game_over and not victory:
                 frame_action = self.input_state.resolve_action()
-                self.env.step(frame_action)
+                _, _, terminated, _, info = self.env.step(frame_action)
+                if info.get("game_over"):
+                    game_over = True
+                elif info.get("victory"):
+                    victory = True
 
             self._draw()
+            if game_over or victory:
+                self._draw_overlay("GAME OVER - Press any key" if game_over else "VICTORY - Press any key")
 
         self.env.close()
         pygame.quit()
+
+    def _draw_overlay(self, text: str) -> None:
+        font = pygame.font.SysFont(None, 28)
+        surface = font.render(text, True, (255, 255, 255))
+        rect = surface.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
+        self.display_surface.blit(surface, rect)
+        pygame.display.flip()

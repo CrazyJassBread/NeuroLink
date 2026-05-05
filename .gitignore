@@ -1,6 +1,6 @@
 rl_model/
 log/
-rl/outputs/*.jsonl
+rl/outputs
 .venv/
 __pycache__/
 *.pyc
@@ -13,6 +13,6 @@ setup.md
 
 .ruff_cache/
 
-docs/
 .codex/
 
+.claude/
