@@ -72,6 +72,12 @@ Zelda-like prototype environment with a custom map format and Gymnasium API.
 
 you can find more detail informations in [env_diy/README.md](env_diy/README.md).
 
+## Documentation
+
+- [Env DIY Game Guide](docs/env_diy_game_guide.md)
+- [Env DIY Developer README](env_diy/README.md)
+- [RL Smoke Training README](rl/README.md)
+
 ### Standalone Prototype
 
 ```bash
