@@ -1,5 +1,6 @@
 rl_model/
 log/
+runs/
 rl/outputs
 .venv/
 __pycache__/
