@@ -190,11 +190,12 @@ Exit types:
 The legacy import `env_diy.env.DungeonEnv` remains available as a compatibility wrapper.
 
 - Static layout uses tile coordinates; player and monsters use top-left pixel coordinates.
-- Player speed is `2.0 px/step`.
-- Default monster speed is `1.0 px/step`, which is `player_speed * 0.5`.
+- Movement actions use `move_speed_px=4` by default, applied as up to four 1px collision-checked sub-steps.
+- Default monster speed remains `1.0 px/tick`.
 - `0 = no-op`, `1 = up`, `2 = down`, `3 = left`, `4 = right`, `5 = A/interact`, `6 = B/shield`.
 - Every action advances exactly one environment tick.
 - `no-op` does not move the player, but monsters and environment logic still update.
+- The DreamerV3 adapter removes no-op from the default training action set by shifting training IDs `0..5` to base actions `1..6`; direct Gymnasium use and human play can still choose no-op.
 - A defaults to the equipped `interact` tool. B defaults to the equipped `shield` tool.
 - The player has lightweight `tools` and `equipped` state for A/B slots; this appears in `info` and HUD, not the observation space.
 - `interact` and `shield` do not move the player, but monsters and environment logic still update.

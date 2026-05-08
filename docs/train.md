@@ -52,20 +52,21 @@ implementation learns continuation from `is_terminal`. For logging, it emits
 
 ### Actions
 
-DreamerV3 outputs a scalar discrete action:
+DreamerV3 outputs a scalar discrete action. With the default
+`agent_noop_enabled=false`, the adapter exposes six training actions and shifts
+them to the base Gymnasium actions `1..6`:
 
 | ID | Meaning |
 |---:|---|
-| `0` | no-op / wait |
-| `1` | up |
-| `2` | down |
-| `3` | left |
-| `4` | right |
-| `5` | A / interact |
-| `6` | B / shield |
+| `0` | up |
+| `1` | down |
+| `2` | left |
+| `3` | right |
+| `4` | A / interact |
+| `5` | B / shield |
 
-The adapter passes this integer directly to `DungeonEnv.step(action)`.
-No one-hot conversion is needed.
+If `agent_noop_enabled=true`, the adapter exposes the base `Discrete(7)` action
+set unchanged, including no-op action `0`. No one-hot conversion is needed.
 
 ### Rewards
 
@@ -78,7 +79,8 @@ The adapter converts selected `info` fields and events into scalar `log/*`
 metrics so DreamerV3 records them without storing them in replay:
 
 - State metrics: `log/health`, `log/gold`, `log/keys`, `log/step`,
-  `log/dungeon_episode`, `log/room_x`, `log/room_y`, `log/visited_rooms`.
+  `log/dungeon_episode`, `log/room_x`, `log/room_y`, `log/visited_rooms`,
+  `log/has_key`, `log/no_progress_steps`, and `log/noop_mapped`.
 - Success metric: `log/success`, currently based on `info["victory"]`.
 - Event metrics: `log/opened_chest`, `log/got_key`, `log/got_gold`,
   `log/got_item`, `log/healed`, `log/pressed_button`,
@@ -191,9 +193,17 @@ available device.
 Useful overrides:
 
 - `--env.env_diy.image False`: vector-only training for faster smoke runs.
-- `--env.env_diy.length 500`: adapter-side time limit.
+- `--env.env_diy.length 400`: adapter-side time limit.
+- `--env.env_diy.move_speed_px 4`: default movement scale, applied as 1px collision sub-steps.
+- `--env.env_diy.agent_noop_enabled False`: expose six shifted training actions so no-op is unavailable to the agent.
+- `--env.env_diy.stuck_penalty_enabled False`: default disabled; enable only after baseline behavior is understood.
 - `--run.envs 1`: simplest single-worker debugging.
 - `--logger.outputs jsonl`: JSONL-only logs if Scope output is not needed.
+
+Recommended initial exploration settings are `move_speed_px=4`,
+`length=400`, no action repeat/repeat wrapper for `env_diy`, no stuck penalty,
+and the existing movement reward design. The bundled `env_diy` config follows
+these defaults.
 
 ## 7. Known Limitations
 

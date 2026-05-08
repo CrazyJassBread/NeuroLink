@@ -68,11 +68,20 @@ class DungeonEnv(gym.Env):
         room_file: str | Path,
         render_mode: str | None = None,
         auto_reset_on_step: bool = True,
+        move_speed_px: int = 4,
+        stuck_penalty_enabled: bool = False,
+        stuck_penalty_steps: int = 30,
+        stuck_penalty: float = -0.01,
     ):
         super().__init__()
         self.room_manager = RoomManager(room_file)
         self.render_mode = render_mode
         self.auto_reset_on_step = auto_reset_on_step
+        self.move_speed_px = max(1, int(move_speed_px))
+        self.stuck_penalty_enabled = bool(stuck_penalty_enabled)
+        self.stuck_penalty_steps = max(1, int(stuck_penalty_steps))
+        self.stuck_penalty = float(stuck_penalty)
+        self.no_progress_steps = 0
         self.max_monster_slots = max(1, self.room_manager.max_monsters)
 
         self.action_space = spaces.Discrete(len(ACTION_LABELS))
@@ -147,6 +156,7 @@ class DungeonEnv(gym.Env):
         self.last_message = MESSAGE_DEFAULT
         self.step_count = 0
         self.episode += 1
+        self.no_progress_steps = 0
         return self._get_obs(), self._get_info(events=["reset"], event_details=[])
 
     def step(self, action: int) -> tuple[dict[str, np.ndarray], float, bool, bool, dict[str, Any]]:
@@ -159,6 +169,8 @@ class DungeonEnv(gym.Env):
         elif self.pending_reset:
             raise RuntimeError("Episode terminated. Call reset() before step().")
 
+        progress_start_pos = self.player.position_px
+        progress_start_room = self.room.room_id
         self.step_count += 1
         events: list[str] = []
         event_details: list[dict[str, Any]] = []
@@ -203,6 +215,13 @@ class DungeonEnv(gym.Env):
             events.append("victory")
             reward += 1.0
 
+        if self._step_made_progress(progress_start_pos, progress_start_room, events):
+            self.no_progress_steps = 0
+        else:
+            self.no_progress_steps += 1
+            if self.stuck_penalty_enabled and self.no_progress_steps >= self.stuck_penalty_steps:
+                reward += self.stuck_penalty
+
         observation = self._get_obs()
         info = self._get_info(events=events, event_details=event_details, auto_reset=auto_reset)
         return observation, reward, terminated, truncated, info
@@ -223,26 +242,35 @@ class DungeonEnv(gym.Env):
         return room_text, f"I:{items} {equipment}"
 
     def _handle_move(self, direction: str, events: list[str]) -> float:
-        dx, dy = {
-            "up": (0.0, -self.player.speed_px_per_step),
-            "down": (0.0, self.player.speed_px_per_step),
-            "left": (-self.player.speed_px_per_step, 0.0),
-            "right": (self.player.speed_px_per_step, 0.0),
+        step_dx, step_dy = {
+            "up": (0.0, -1.0),
+            "down": (0.0, 1.0),
+            "left": (-1.0, 0.0),
+            "right": (1.0, 0.0),
         }[direction]
         previous_position = self.player.position_px
-        proposed_position = (
-            previous_position[0] + dx,
-            previous_position[1] + dy,
-        )
-        self.player.position_px = move_with_tile_collisions(
-            previous_position,
-            self.player.size_px,
-            (dx, dy),
-            self.room.blocking_tiles(),
-        )
+        current_position = previous_position
+        blocked_position: tuple[float, float] | None = None
+        for _ in range(self.move_speed_px):
+            proposed_position = (
+                current_position[0] + step_dx,
+                current_position[1] + step_dy,
+            )
+            next_position = move_with_tile_collisions(
+                current_position,
+                self.player.size_px,
+                (step_dx, step_dy),
+                self.room.blocking_tiles(),
+            )
+            if next_position == current_position:
+                blocked_position = proposed_position
+                break
+            current_position = next_position
+
+        self.player.position_px = current_position
 
         if self.player.position_px == previous_position:
-            if not self._within_map_bounds(proposed_position):
+            if blocked_position is not None and not self._within_map_bounds(blocked_position):
                 self.last_message = "EDGE BLOCKED"
                 events.append("blocked_bounds")
             else:
@@ -581,6 +609,31 @@ class DungeonEnv(gym.Env):
             "monsters_hp": monster_hp,
         }
 
+    def _step_made_progress(
+        self,
+        start_pos: tuple[float, float],
+        start_room_id: str,
+        events: list[str],
+    ) -> bool:
+        if self.player.position_px != start_pos:
+            return True
+        if self.room.room_id != start_room_id:
+            return True
+        progress_events = {
+            "door_unlocked",
+            "got_key",
+            "got_gold",
+            "got_item",
+            "healed",
+            "monster_killed",
+            "opened_chest",
+            "pressed_button",
+            "room_transition",
+            "talked_npc",
+            "victory",
+        }
+        return any(event in progress_events for event in events)
+
     def _get_info(
         self,
         *,
@@ -604,6 +657,14 @@ class DungeonEnv(gym.Env):
             "step": self.step_count,
             "player_position_px": self.player.position_px,
             "player_tile": self._player_tile(),
+            "agent_pos": self.player.position_px,
+            "has_key": self.player.keys > 0,
+            "key_count": self.player.keys,
+            "picked_key": "got_key" in events,
+            "unlocked_door": "door_unlocked" in events,
+            "entered_new_room": "room_transition" in events,
+            "task_success": "victory" in events,
+            "no_progress_steps": self.no_progress_steps,
         }
         if auto_reset:
             info["auto_reset"] = True

@@ -151,6 +151,32 @@ def test_env_diy_time_limit_is_non_terminal_last_step(monkeypatch):
         env.close()
 
 
+def test_env_diy_training_noop_is_mapped_to_valid_action(monkeypatch):
+    env_diy = _import_env_diy(monkeypatch)
+    env = env_diy.EnvDIY(
+        "default",
+        image=False,
+        length=10,
+        logs=True,
+        seed=0,
+        move_speed_px=4,
+        agent_noop_enabled=False,
+    )
+    try:
+        assert env.act_space["action"].high == 6
+        obs = env.step({"reset": np.array(True), "action": np.array(0, np.int32)})
+        before = env._env.player.position_px
+
+        obs = env.step({"reset": np.array(False), "action": np.array(0, np.int32)})
+
+        assert not obs["is_first"]
+        assert env._env.player.position_px != before
+        assert "log/noop_mapped" in obs
+        assert obs["log/noop_mapped"] == np.float32(1.0)
+    finally:
+        env.close()
+
+
 def test_dreamerv3_make_env_routes_env_diy_task(monkeypatch):
     _install_dreamer_fakes(monkeypatch)
     sys.modules.pop("dreamerv3.main", None)
@@ -167,6 +193,9 @@ def test_dreamerv3_make_env_routes_env_diy_task(monkeypatch):
                 "length": 5,
                 "logs": True,
                 "use_seed": True,
+                "move_speed_px": 4,
+                "agent_noop_enabled": False,
+                "stuck_penalty_enabled": False,
             },
         },
     )

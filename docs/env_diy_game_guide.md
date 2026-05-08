@@ -104,7 +104,7 @@ Current `PlayerState` fields include:
 |---|---:|---|
 | `position_px` | room default spawn | Top-left pixel position. |
 | `size_px` | `16` | AABB size. |
-| `speed_px_per_step` | `2.0` | Movement distance for movement actions. |
+| `speed_px_per_step` | `2.0` | Legacy per-pixel actor speed field; RL movement now uses `DungeonEnv.move_speed_px`. |
 | `health` / `max_health` | `5` / `5` | Health and game-over threshold. |
 | `gold` | `0` | Gold count. |
 | `keys` | `0` | Key count for locked doors. |
@@ -195,7 +195,7 @@ Rewards are currently implemented directly in `DungeonEnv` methods, not centrali
 
 | Event | Reward | Notes |
 |---|---:|---|
-| Successful movement | `-0.01` | Pixel movement by `2px`. |
+| Successful movement | `-0.01` | Movement actions run up to `move_speed_px` one-pixel collision sub-steps; default `4px`. |
 | Blocked wall/bounds movement | `-0.02` | Includes non-exit boundary attempts. |
 | A/interact no effect | `-0.01` | `action_a_empty`. |
 | Unknown equipped A/B tool no effect | `-0.01` | Future extension path. |
@@ -234,7 +234,7 @@ Action semantics:
 
 - Every action advances exactly one environment tick.
 - `no-op` does not move the player, but monsters still update.
-- Movement is pixel-level, not tile jumps.
+- Movement is pixel-level, not tile jumps. `DungeonEnv(move_speed_px=4)` is the default, implemented as up to four 1px collision-checked sub-steps per movement action.
 - A/interact and B/shield also allow monsters and contact checks to run.
 - The current `Discrete(7)` API cannot express simultaneous movement plus shield.
 - Human play maps held X to repeated B/shield with priority over held movement.
@@ -353,6 +353,14 @@ Current `info` fields:
 | `player_tile` | Player center tile tuple. |
 | `auto_reset` | Present only when a step auto-reset occurred first. |
 | `game_over` | Present and true on terminal game-over step. |
+| `agent_pos` | Alias for current player pixel position, intended for RL diagnostics. |
+| `has_key` | True when the player has at least one key. |
+| `key_count` | Current key count. |
+| `picked_key` | True on steps that collect a key. |
+| `unlocked_door` | True on steps that unlock a locked door. |
+| `entered_new_room` | True on room transition steps. |
+| `task_success` | True on victory/task-success terminal steps. |
+| `no_progress_steps` | Consecutive steps without movement or configured progress events. |
 
 Important: `info["events"]` is a list of strings, not a list of event objects. Structured fields are in `info["event_details"]`.
 
@@ -519,7 +527,9 @@ RL considerations:
 
 - `no-op` advances ticks and monsters can move.
 - A/interact and B/shield also advance ticks.
-- Movement is pixel-level (`2px/step`) while map layout and exits are tile-based.
+- Movement is pixel-level (`move_speed_px=4` by default) while map layout and exits are tile-based.
+- The DreamerV3 adapter disables training no-op by default by exposing six shifted actions: training IDs `0..5` map to base environment actions `1..6`. Human play and direct Gymnasium use can still choose no-op.
+- Optional stuck penalty is disabled by default. If enabled, consecutive no-progress steps beyond the configured threshold receive the configured small penalty.
 - Current action space is discrete and cannot express movement plus shield simultaneously.
 - Observation is current-room focused, not a full dungeon state.
 - Reward shaping is simple and local; there is no explicit win reward yet.

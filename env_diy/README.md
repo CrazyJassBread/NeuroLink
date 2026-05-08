@@ -85,6 +85,9 @@ Action ids are stable:
 ```
 
 Every action advances one environment tick, including no-op, A, and B.
+Movement actions use `move_speed_px=4` by default. The environment applies this
+as up to four 1px collision-checked sub-steps, so walls, blocking objects, and
+room-edge door checks keep their original behavior.
 
 Default equipment:
 
@@ -92,6 +95,11 @@ Default equipment:
 - B slot: `shield`
 
 The player also has lightweight `tools` and `equipped` state for future equipment work. These values are exposed in `info` and the HUD but are not part of the observation space.
+
+Training diagnostics in `info` include `agent_pos`, `has_key`, `key_count`,
+`picked_key`, `unlocked_door`, `entered_new_room`, `task_success`, and
+`no_progress_steps`. Optional stuck penalty settings are available on
+`DungeonEnv(...)` but are disabled by default.
 
 The `Discrete(7)` action space cannot express move+shield at the same time. The pygame human runner uses the current v1 policy: held B means stand and guard, so X has priority over held movement.
 

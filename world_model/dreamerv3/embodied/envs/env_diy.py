@@ -59,20 +59,33 @@ class EnvDIY(embodied.Env):
       length=500,
       logs=True,
       seed=None,
+      move_speed_px=4,
+      agent_noop_enabled=False,
+      stuck_penalty_enabled=False,
+      stuck_penalty_steps=30,
+      stuck_penalty=-0.01,
   ):
     del task
+    from env_diy.core.constants import ACTION_NOOP
     from env_diy.envs import DungeonEnv
 
     self._config_path = self._resolve_config_path(config_path)
     self._env = DungeonEnv(
         self._config_path,
         render_mode='rgb_array',
-        auto_reset_on_step=False)
+        auto_reset_on_step=False,
+        move_speed_px=move_speed_px,
+        stuck_penalty_enabled=stuck_penalty_enabled,
+        stuck_penalty_steps=stuck_penalty_steps,
+        stuck_penalty=stuck_penalty)
     self._image = bool(image)
     self._image_size = tuple(image_size)
     self._length = int(length) if length else 0
     self._logs = bool(logs)
     self._seed = seed
+    self._agent_noop_enabled = bool(agent_noop_enabled)
+    self._noop_action = ACTION_NOOP
+    self._last_noop_mapped = False
     self._episode = 0
     self._step = 0
     self._done = True
@@ -105,14 +118,18 @@ class EnvDIY(embodied.Env):
           'log/room_y': elements.Space(np.float32),
           'log/visited_rooms': elements.Space(np.float32),
           'log/success': elements.Space(np.float32),
+          'log/has_key': elements.Space(np.float32),
+          'log/no_progress_steps': elements.Space(np.float32),
+          'log/noop_mapped': elements.Space(np.float32),
           **{f'log/{event}': elements.Space(np.float32) for event in self.LOG_EVENTS},
       })
     return spaces
 
   @functools.cached_property
   def act_space(self):
+    action_count = self._env.action_space.n if self._agent_noop_enabled else self._env.action_space.n - 1
     return {
-        'action': elements.Space(np.int32, (), 0, self._env.action_space.n),
+        'action': elements.Space(np.int32, (), 0, action_count),
         'reset': elements.Space(bool),
     }
 
@@ -120,7 +137,7 @@ class EnvDIY(embodied.Env):
     if bool(action['reset']) or self._done:
       return self._reset()
 
-    raw_action = int(np.asarray(action['action']).item())
+    raw_action = self._agent_action(int(np.asarray(action['action']).item()))
     obs, reward, terminated, truncated, info = self._env.step(raw_action)
     self._step += 1
 
@@ -144,8 +161,16 @@ class EnvDIY(embodied.Env):
     self._episode += 1
     self._step = 0
     self._done = False
+    self._last_noop_mapped = False
     self._visited_rooms = {info.get('room_id', '')}
     return self._obs(obs, 0.0, info, is_first=True)
+
+  def _agent_action(self, raw_action):
+    if self._agent_noop_enabled:
+      self._last_noop_mapped = False
+      return raw_action
+    self._last_noop_mapped = raw_action == self._noop_action
+    return raw_action + 1
 
   def _obs(
       self,
@@ -213,6 +238,9 @@ class EnvDIY(embodied.Env):
         'log/room_y': np.float32(room_coord[1]),
         'log/visited_rooms': np.float32(len(self._visited_rooms)),
         'log/success': np.float32(success),
+        'log/has_key': np.float32(1.0 if info.get('has_key', False) else 0.0),
+        'log/no_progress_steps': np.float32(info.get('no_progress_steps', 0)),
+        'log/noop_mapped': np.float32(1.0 if self._last_noop_mapped else 0.0),
     }
     logs.update({
         f'log/{event}': np.float32(1.0 if event in events else 0.0)

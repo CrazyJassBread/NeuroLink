@@ -66,9 +66,48 @@ class DungeonEnvTests(unittest.TestCase):
             obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
 
         delta_x = env.player.position_px[0] - before[0]
-        self.assertEqual(delta_x, PLAYER_SPEED_PX_PER_STEP)
+        self.assertEqual(delta_x, 4.0)
         self.assertLess(delta_x, TILE_SIZE)
         self.assertEqual(env.player.position_px[1], before[1])
+        self.assertEqual(info["agent_pos"], env.player.position_px)
+        self.assertEqual(info["key_count"], env.player.keys)
+        self.assertFalse(info["picked_key"])
+        self.assertFalse(info["unlocked_door"])
+        self.assertFalse(info["entered_new_room"])
+        self.assertFalse(info["task_success"])
+        self.assertEqual(info["no_progress_steps"], 0)
+
+    def test_move_speed_stops_at_wall_without_crossing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            env = DungeonEnv(self._write_wall_dungeon(Path(tmp_dir)), move_speed_px=4)
+            env.reset()
+            env.player.position_px = (15.0, 16.0)
+
+            obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
+
+        self.assertEqual(env.player.position_px, (16.0, 16.0))
+        self.assertLessEqual(env.player.position_px[0] + env.player.size_px, 32.0)
+        self.assertIn("move_right", info["events"])
+        self.assertNotIn("blocked_wall", info["events"])
+
+    def test_stuck_penalty_is_optional_and_reports_no_progress_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            env = DungeonEnv(
+                self._write_wall_dungeon(Path(tmp_dir)),
+                move_speed_px=4,
+                stuck_penalty_enabled=True,
+                stuck_penalty_steps=2,
+                stuck_penalty=-0.01,
+            )
+            env.reset()
+            env.player.position_px = (16.0, 16.0)
+
+            obs, first_reward, terminated, truncated, first_info = env.step(ACTION_RIGHT)
+            obs, second_reward, terminated, truncated, second_info = env.step(ACTION_RIGHT)
+
+        self.assertEqual(first_info["no_progress_steps"], 1)
+        self.assertEqual(second_info["no_progress_steps"], 2)
+        self.assertAlmostEqual(second_reward, first_reward - 0.01)
 
     def test_default_monster_speed_is_half_of_player(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -313,11 +352,11 @@ class DungeonEnvTests(unittest.TestCase):
             env = DungeonEnv(self._write_trigger_dungeon(Path(tmp_dir)))
             env.reset()
 
-            for _ in range(4):
+            for _ in range(2):
                 obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
             self.assertIn("pressed_button", info["events"])
 
-            for _ in range(8):
+            for _ in range(4):
                 obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
 
         self.assertIn("trap_damage", info["events"])
