@@ -1,0 +1,51 @@
+﻿{
+  "id": "room_0_0",
+  "coord": [0, 0],
+  "layout": [
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [1, 1],
+    "from_south": [4, 1],
+    "from_east": [8, 4]
+  },
+  "default_spawn": "default",
+  "objects": [
+    {
+      "id": "npc_1",
+      "kind": "npc",
+      "pos": [5, 2],
+      "text": "Press the button to open the south door. Collect 2 keys down there, then unlock the east vault."
+    },
+    { "id": "button_1", "kind": "button", "pos": [2, 6], "message": "south door open" }
+  ],
+  "exits": [
+    {
+      "id": "south_exit",
+      "direction": "south",
+      "target_room": "room_0_1",
+      "target_entry": "from_north",
+      "type": "conditional",
+      "requires": { "button_pressed": "button_1" },
+      "blocked_message": "PRESS BUTTON",
+      "success_message": "KEY ROOM"
+    },
+    {
+      "id": "east_exit",
+      "direction": "east",
+      "target_room": "room_1_0",
+      "target_entry": "from_west",
+      "type": "locked_key",
+      "requires": { "key_count": 2, "consume_key": true },
+      "blocked_message": "NEED 2 KEYS",
+      "success_message": "THE VAULT"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+﻿{
+  "id": "room_1_0",
+  "coord": [1, 0],
+  "layout": [
+    "..........",
+    ".......#..",
+    "..........",
+    "..........",
+    "..........",
+    ".......#..",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [1, 4],
+    "from_west": [1, 4]
+  },
+  "default_spawn": "default",
+  "objects": [
+    {
+      "id": "chest_1",
+      "kind": "chest",
+      "pos": [8, 2],
+      "loot": { "kind": "heal", "amount": 2 }
+    },
+    {
+      "id": "npc_1",
+      "kind": "npc",
+      "pos": [8, 6],
+      "text": "You survived the gauntlet!"
+    },
+    {
+      "id": "monster_1",
+      "kind": "monster",
+      "pos": [3, 2],
+      "monster_type": "chaser",
+      "hp": 3,
+      "damage": 1
+    },
+    {
+      "id": "monster_2",
+      "kind": "monster",
+      "pos": [6, 4],
+      "monster_type": "ambusher",
+      "ambush_range": 4,
+      "hp": 3,
+      "damage": 1
+    },
+    {
+      "id": "monster_3",
+      "kind": "monster",
+      "pos": [3, 5],
+      "monster_type": "chaser",
+      "hp": 2,
+      "damage": 1
+    },
+    {
+      "id": "monster_4",
+      "kind": "monster",
+      "pos": [5, 3],
+      "monster_type": "patroller",
+      "patrol_span": 32,
+      "hp": 2,
+      "damage": 1
+    }
+  ],
+  "exits": [
+    {
+      "id": "west_exit",
+      "direction": "west",
+      "target_room": "room_0_0",
+      "target_entry": "from_east",
+      "type": "normal",
+      "success_message": "START ROOM"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+﻿{
+  "id": "room_0_1",
+  "coord": [0, 1],
+  "layout": [
+    "..........",
+    ".#......#.",
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    ".#......#.",
+    ".........."
+  ],
+  "spawns": {
+    "default": [5, 1],
+    "from_north": [5, 1]
+  },
+  "default_spawn": "default",
+  "objects": [
+    { "id": "npc_1", "kind": "npc", "pos": [5, 4], "text": "Two chests, two keys. Watch out for the guards!" },
+    {
+      "id": "chest_1",
+      "kind": "chest",
+      "pos": [2, 3],
+      "loot": { "kind": "key", "key_id": "vault_key_1" }
+    },
+    {
+      "id": "chest_2",
+      "kind": "chest",
+      "pos": [7, 5],
+      "loot": { "kind": "key", "key_id": "vault_key_2" }
+    },
+    { "id": "monster_1", "kind": "monster", "pos": [3, 2], "monster_type": "chaser", "hp": 2, "damage": 1 },
+    { "id": "monster_2", "kind": "monster", "pos": [6, 5], "monster_type": "ambusher", "ambush_range": 3, "hp": 2, "damage": 1 }
+  ],
+  "exits": [
+    {
+      "id": "north_exit",
+      "direction": "north",
+      "target_room": "room_0_0",
+      "target_entry": "from_south",
+      "type": "normal",
+      "success_message": "BACK"
+    }
+  ]
+}
