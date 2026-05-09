@@ -1,0 +1,59 @@
+﻿{
+  "id": "room_0_1",
+  "coord": [0, 1],
+  "layout": [
+    "..........",
+    "..........",
+    "..######..",
+    "..........",
+    "..........",
+    "..######..",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [7, 1],
+    "from_north": [7, 1],
+    "from_east": [8, 4]
+  },
+  "default_spawn": "default",
+  "objects": [
+    {
+      "id": "chest_1",
+      "kind": "chest",
+      "pos": [1, 4],
+      "loot": { "kind": "key", "key_id": "evasion_key" }
+    },
+    { "id": "npc_1", "kind": "npc", "pos": [8, 1], "text": "The key is in the west. Dodge and grab it!" },
+    { "id": "trap_1", "kind": "trap", "pos": [3, 1], "damage": 1, "respawn_to": "from_north" },
+    { "id": "trap_2", "kind": "trap", "pos": [6, 1], "damage": 1, "respawn_to": "from_north" },
+    { "id": "trap_3", "kind": "trap", "pos": [2, 3], "damage": 1, "respawn_to": "from_north" },
+    { "id": "trap_4", "kind": "trap", "pos": [1, 3], "damage": 1, "respawn_to": "from_north" },
+    { "id": "trap_5", "kind": "trap", "pos": [7, 3], "damage": 1, "respawn_to": "from_north" },
+    { "id": "trap_6", "kind": "trap", "pos": [3, 6], "damage": 1, "respawn_to": "from_north" },
+    { "id": "trap_7", "kind": "trap", "pos": [6, 6], "damage": 1, "respawn_to": "from_north" },
+    { "id": "monster_1", "kind": "monster", "pos": [1, 1], "monster_type": "chaser", "hp": 2, "damage": 1 },
+    { "id": "monster_2", "kind": "monster", "pos": [1, 5], "monster_type": "chaser", "hp": 2, "damage": 1 },
+    { "id": "monster_3", "kind": "monster", "pos": [8, 5], "monster_type": "chaser", "hp": 2, "damage": 1 }
+  ],
+  "exits": [
+    {
+      "id": "north_exit",
+      "direction": "north",
+      "target_room": "room_0_0",
+      "target_entry": "from_south",
+      "type": "normal",
+      "success_message": "BACK"
+    },
+    {
+      "id": "east_exit",
+      "direction": "east",
+      "target_room": "room_1_1",
+      "target_entry": "from_west",
+      "type": "locked_key",
+      "requires": { "key_count": 1, "consume_key": true },
+      "blocked_message": "NEED KEY",
+      "success_message": "ESCAPED!"
+    }
+  ]
+}

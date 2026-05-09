@@ -1,0 +1,38 @@
+﻿{
+  "id": "room_1_1",
+  "coord": [1, 1],
+  "layout": [
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [1, 4],
+    "from_west": [1, 4]
+  },
+  "default_spawn": "default",
+  "objects": [
+    {
+      "id": "chest_1",
+      "kind": "chest",
+      "pos": [5, 3],
+      "loot": { "kind": "heal", "amount": 3 }
+    },
+    { "id": "npc_1", "kind": "npc", "pos": [5, 5], "text": "You dodged everything and escaped! Well done." }
+  ],
+  "exits": [
+    {
+      "id": "west_exit",
+      "direction": "west",
+      "target_room": "room_0_1",
+      "target_entry": "from_east",
+      "type": "normal",
+      "success_message": "BACK"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+﻿{
+  "schema_version": 1,
+  "dungeon_id": "combat_training",
+  "start_room": "room_0_0",
+  "room_files": [
+    "rooms/room_0_0.json",
+    "rooms/room_1_0.json"
+  ]
+}
