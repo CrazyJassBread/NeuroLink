@@ -551,6 +551,13 @@ source .venv/bin/activate
 python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 0
 ```
 
+Unified classic RL training entry:
+
+```bash
+python rl/train.py --method ppo --task-rooms prototype --total-timesteps 50000 --episodes 5 --seed 0
+python rl/train.py --method ppo --task-rooms avoid_traps kill_monsters key_door --episodes 2
+```
+
 Environment creation:
 
 ```python
@@ -566,6 +573,7 @@ RL considerations:
 - A/interact and B/shield also advance ticks.
 - Movement is pixel-level (`move_speed_px=1.0` by default) while map layout and exits are tile-based.
 - In `rl/` scripts, `max_steps` counts outer agent decisions. Actual environment ticks are approximately `max_steps * action_repeat`, unless termination or truncation stops early.
+- `rl/train.py` selects classic RL methods via `--method`; PPO is implemented under `rl/baselines/ppo.py`, while DQN and A3C are registered placeholders until their baselines are added.
 - The DreamerV3 adapter disables training no-op by default by exposing six shifted actions: training IDs `0..5` map to base environment actions `1..6`. Human play and direct Gymnasium use can still choose no-op.
 - Optional stuck penalty is disabled by default. If enabled, consecutive no-progress steps beyond the configured threshold receive the configured small penalty.
 - Current action space is discrete and cannot express movement plus shield simultaneously.

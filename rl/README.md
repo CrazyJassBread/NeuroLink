@@ -95,6 +95,57 @@ python rl/train_single_task.py --config env_diy/map_data/dungeons/key_door/room_
 Episode logs include reward, length, `finish`, `terminated`, and `truncated`.
 JSONL output defaults to `rl/outputs/single_task_training.jsonl`.
 
+## Unified Classic RL Entry
+
+`rl/train.py` is the shared entry point for classic RL baselines. The method
+selects the implementation under `rl/baselines/`, while defaults and room
+resolution live under `rl/config/`.
+
+```bash
+python rl/train.py --method ppo --task-rooms prototype --total-timesteps 50000 --episodes 5 --seed 0
+```
+
+Common options:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--method` | `ppo` | Baseline method: `ppo`, `dqn`, or `a3c` |
+| `--episodes` | 5 | Evaluation episodes after training |
+| `--max-steps` | 500 | Max steps per evaluation episode |
+| `--total-timesteps` | 50 000 | Training timesteps for PPO |
+| `--gpu` | auto | GPU index, `-1` for CPU |
+| `--action-repeat` | 1 | Repeat each policy action for multiple env ticks |
+| `--task-rooms` | `prototype` | One or more named dungeons/task rooms |
+| `--config` | unset | Explicit room/dungeon JSON path; overrides `--task-rooms` |
+| `--output-dir` | `rl/outputs` | Root output directory |
+| `--skip-train` | off | Load an existing model and evaluate only |
+
+Supported `--task-rooms` values:
+
+- `prototype`
+- `combat_training`
+- `evasion_training`
+- `chest_training`
+- `avoid_traps`
+- `kill_monsters`
+- `key_door`
+
+Passing multiple rooms runs them sequentially as a simple curriculum:
+
+```bash
+python rl/train.py --method ppo --task-rooms combat_training evasion_training chest_training
+```
+
+Outputs are organized as:
+
+```text
+rl/outputs/<method>/<task-room>/model.zip
+rl/outputs/<method>/<task-room>/eval.jsonl
+```
+
+`dqn` and `a3c` are registered in the unified entry and intentionally raise
+`NotImplementedError` until their implementations are added.
+
 ## PPO Training (Stable Baselines3)
 
 Install the extra dependency first:
@@ -103,10 +154,10 @@ Install the extra dependency first:
 pip install stable-baselines3
 ```
 
-Then run from the repository root:
+Then run from the repository root through the unified entry:
 
 ```bash
-python rl/train_ppo.py --total-timesteps 50000 --n-eval-episodes 5 --seed 0
+python rl/train.py --method ppo --total-timesteps 50000 --episodes 5 --seed 0
 ```
 
 Key options:
@@ -114,20 +165,22 @@ Key options:
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--total-timesteps` | 50 000 | Training timesteps |
-| `--n-eval-episodes` | 5 | Greedy evaluation episodes after training |
+| `--episodes` | 5 | Greedy evaluation episodes after training |
 | `--max-steps` | 500 | Max steps per evaluation episode |
 | `--seed` | 0 | Random seed |
 | `--action-repeat` | 1 | Repeat each policy action for multiple env ticks |
 | `--config` | prototype dungeon | Dungeon config JSON path |
-| `--save-path` | `rl/outputs/ppo_model` | Model save path (SB3 appends `.zip`) |
-| `--output` | `rl/outputs/ppo_eval.jsonl` | Evaluation summary JSONL |
+| `--output-dir` | `rl/outputs` | Root directory for model/eval outputs |
 | `--render` | off | Call `env.render()` during evaluation |
 
 Quick smoke run (1 000 timesteps):
 
 ```bash
-python rl/train_ppo.py --total-timesteps 1000 --n-eval-episodes 2 --max-steps 100
+python rl/train.py --method ppo --total-timesteps 1000 --episodes 2 --max-steps 100
 ```
+
+The old `rl/train_ppo.py` script is retained as a compatibility wrapper, but
+new runs should prefer `rl/train.py`.
 
 **Notes**
 
@@ -136,4 +189,6 @@ python rl/train_ppo.py --total-timesteps 1000 --n-eval-episodes 2 --max-steps 10
 
 ## Extension Notes
 
-Keep dependency-light smoke scripts in `rl/` and shared helpers in `rl/utils/`. More complete algorithms can be added later as separate scripts, but should not replace the random policy smoke path.
+Keep dependency-light smoke scripts in `rl/` and shared helpers in `rl/utils/`.
+Classic RL algorithms should be added under `rl/baselines/` and exposed through
+`rl/train.py`; they should not replace the random policy smoke path.

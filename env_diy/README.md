@@ -67,6 +67,13 @@ python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 
 python rl/train_single_task.py --task avoid_traps --episodes 1 --max-steps 20 --action-repeat 4 --seed 0
 ```
 
+Unified classic RL training entry:
+
+```bash
+python rl/train.py --method ppo --task-rooms prototype --total-timesteps 50000 --episodes 5 --seed 0
+python rl/train.py --method ppo --task-rooms avoid_traps kill_monsters key_door --episodes 2
+```
+
 ## Related Docs
 
 - [Env DIY Game Guide](../docs/env_diy_game_guide.md)

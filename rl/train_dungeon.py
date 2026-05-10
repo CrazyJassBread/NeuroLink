@@ -1,15 +1,8 @@
-﻿"""Training entry point for single-task and curriculum dungeon training.
+"""Compatibility entry for named dungeon PPO training.
 
-Usage examples
---------------
-# Train on a single dungeon:
-python -m rl.train_dungeon --dungeon combat_training --total-timesteps 100000
+Prefer the unified entry:
 
-# Train all three single-task dungeons in sequence (curriculum):
-python -m rl.train_dungeon --curriculum --total-timesteps 100000
-
-# Evaluate a saved model:
-python -m rl.train_dungeon --dungeon evasion_training --skip-train --n-eval-episodes 10
+    python -m rl.train --method ppo --task-rooms combat_training
 """
 from __future__ import annotations
 
@@ -17,77 +10,56 @@ import argparse
 import sys
 from pathlib import Path
 
-if __package__:
-    from rl.train_ppo import run_ppo_training
-else:
+if __package__ is None or __package__ == "":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from train_ppo import run_ppo_training
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from rl.baselines.ppo import train as train_ppo
+from rl.config import TASK_ROOM_CONFIGS, TrainingConfig
 
-DUNGEONS: dict[str, Path] = {
-    "prototype":        PROJECT_ROOT / "env_diy/map_data/dungeons/prototype/dungeon.json",
-    "combat_training":  PROJECT_ROOT / "env_diy/map_data/dungeons/combat_training/dungeon.json",
-    "evasion_training": PROJECT_ROOT / "env_diy/map_data/dungeons/evasion_training/dungeon.json",
-    "chest_training":   PROJECT_ROOT / "env_diy/map_data/dungeons/chest_training/dungeon.json",
+
+DUNGEONS = {
+    name: path
+    for name, path in TASK_ROOM_CONFIGS.items()
+    if name in {"prototype", "combat_training", "evasion_training", "chest_training"}
 }
-
-CURRICULUM_ORDER = ["combat_training", "evasion_training", "chest_training"]
-
-
-def output_dir(dungeon_name: str) -> Path:
-    return PROJECT_ROOT / "rl" / "outputs" / dungeon_name
+CURRICULUM_ORDER = ("combat_training", "evasion_training", "chest_training")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train a PPO agent on a named dungeon.",
+        description="Compatibility wrapper for PPO training on named dungeons.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--dungeon", choices=list(DUNGEONS.keys()))
-    group.add_argument("--curriculum", action="store_true",
-                       help=f"Train sequentially on: {' -> '.join(CURRICULUM_ORDER)}")
+    group.add_argument("--dungeon", choices=sorted(DUNGEONS))
+    group.add_argument("--curriculum", action="store_true", help=f"Train sequentially on: {' -> '.join(CURRICULUM_ORDER)}")
     parser.add_argument("--total-timesteps", type=int, default=100_000)
     parser.add_argument("--n-eval-episodes", type=int, default=5)
     parser.add_argument("--max-steps", type=int, default=500)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--render", action="store_true")
-    parser.add_argument("--skip-train", action="store_true",
-                        help="Skip training, run evaluation only.")
+    parser.add_argument("--action-repeat", type=int, default=1)
+    parser.add_argument("--gpu", type=int, default=None, help="GPU index. Use -1 for CPU, omit for auto.")
+    parser.add_argument("--skip-train", action="store_true", help="Load existing models and run evaluation only.")
     return parser.parse_args()
-
-
-def train_one(dungeon_name: str, args: argparse.Namespace) -> None:
-    config = DUNGEONS[dungeon_name]
-    out_dir = output_dir(dungeon_name)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\n{'='*60}")
-    print(f"  Dungeon : {dungeon_name}")
-    print(f"  Config  : {config}")
-    print(f"  Output  : {out_dir}")
-    print(f"{'='*60}\n")
-    run_ppo_training(
-        total_timesteps=0 if args.skip_train else args.total_timesteps,
-        n_eval_episodes=args.n_eval_episodes,
-        max_steps=args.max_steps,
-        seed=args.seed,
-        config=config,
-        render=args.render,
-        output=out_dir / "eval.jsonl",
-        save_path=out_dir / "model",
-    )
 
 
 def main() -> None:
     args = parse_args()
-    if args.curriculum:
-        print(f"Curriculum mode: {' -> '.join(CURRICULUM_ORDER)}")
-        for name in CURRICULUM_ORDER:
-            train_one(name, args)
-        print("\nCurriculum complete.")
-    else:
-        train_one(args.dungeon, args)
+    task_rooms = CURRICULUM_ORDER if args.curriculum else (args.dungeon,)
+    config = TrainingConfig(
+        method="ppo",
+        episodes=args.n_eval_episodes,
+        max_steps=args.max_steps,
+        total_timesteps=args.total_timesteps,
+        gpu=args.gpu,
+        seed=args.seed,
+        action_repeat=args.action_repeat,
+        task_rooms=tuple(task_rooms),
+        render=args.render,
+        skip_train=args.skip_train,
+    )
+    train_ppo(config)
 
 
 if __name__ == "__main__":
