@@ -23,6 +23,7 @@ from ..core.constants import (
     MONSTER_KILL_GOLD_REWARD,
     MONSTER_STUN_TICKS,
     MOVE_ACTION_TO_DIRECTION,
+    PLAYER_SPEED_PX_PER_TICK,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
     TILE_SIZE,
@@ -68,7 +69,7 @@ class DungeonEnv(gym.Env):
         room_file: str | Path,
         render_mode: str | None = None,
         auto_reset_on_step: bool = True,
-        move_speed_px: int = 4,
+        move_speed_px: float = PLAYER_SPEED_PX_PER_TICK,
         stuck_penalty_enabled: bool = False,
         stuck_penalty_steps: int = 30,
         stuck_penalty: float = -0.01,
@@ -83,6 +84,13 @@ class DungeonEnv(gym.Env):
         self.stuck_penalty = float(stuck_penalty)
         self.no_progress_steps = 0
         self.max_monster_slots = max(1, self.room_manager.max_monsters)
+        self.task_config = self.room_manager.task_config
+        self._task_finished = False
+        self._exit_task_enabled = self.task_config is not None or any(
+            exit_cfg.complete_task
+            for room in self.room_manager.room_templates.values()
+            for exit_cfg in room.exits
+        )
 
         self.action_space = spaces.Discrete(len(ACTION_LABELS))
         self.observation_space = spaces.Dict(
@@ -157,6 +165,7 @@ class DungeonEnv(gym.Env):
         self.step_count = 0
         self.episode += 1
         self.no_progress_steps = 0
+        self._task_finished = False
         return self._get_obs(), self._get_info(events=["reset"], event_details=[])
 
     def step(self, action: int) -> tuple[dict[str, np.ndarray], float, bool, bool, dict[str, Any]]:
@@ -184,11 +193,11 @@ class DungeonEnv(gym.Env):
             reward += self._handle_move(move_direction, events)
         elif action == ACTION_A:
             events.append("action_a")
-            action_reward, shield_active = self._handle_equipped_action(EquipmentSlot.A, events)
+            action_reward, shield_active = self._handle_equipped_action(EquipmentSlot.A, events, event_details)
             reward += action_reward
         elif action == ACTION_B:
             events.append("action_b")
-            action_reward, shield_active = self._handle_equipped_action(EquipmentSlot.B, events)
+            action_reward, shield_active = self._handle_equipped_action(EquipmentSlot.B, events, event_details)
             reward += action_reward
         elif action == ACTION_NOOP:
             self.last_message = "WAIT"
@@ -203,17 +212,25 @@ class DungeonEnv(gym.Env):
         if self.player.health > 0:
             reward += self._resolve_monster_contact(events, event_details, shield_active=shield_active)
 
+        task_finished_now = False
+        if self.player.health > 0:
+            finish_reward = self._resolve_task_objective(events, event_details)
+            if finish_reward is not None:
+                task_finished_now = True
+                reward += finish_reward
+
         if self.player.health <= 0:
             terminated = True
             self.pending_reset = True
             self.last_message = "GAME OVER"
             events.append("game_over")
-        elif self._all_chests_opened():
+        elif task_finished_now or "victory" in events or (not self._exit_task_enabled and self._all_chests_opened()):
             terminated = True
             self.pending_reset = True
             self.last_message = "VICTORY"
-            events.append("victory")
-            reward += 1.0
+            if "victory" not in events:
+                events.append("victory")
+                reward += 1.0
 
         if self._step_made_progress(progress_start_pos, progress_start_room, events):
             self.no_progress_steps = 0
@@ -280,7 +297,7 @@ class DungeonEnv(gym.Env):
 
         self.last_message = f"MOVE {direction.upper()}"
         events.append(f"move_{direction}")
-        return -0.01
+        return self._task_reward("step", -0.01)
 
     def _resolve_transition(
         self,
@@ -326,6 +343,9 @@ class DungeonEnv(gym.Env):
                     "key_consumed": key_consumed,
                 }
             )
+            reward_unlock = self._task_reward("door_unlock", 0.0)
+        else:
+            reward_unlock = 0.0
 
         target_coord = self.room_manager.coord_for_room_id(exit_config.target_room_id)
         target_room = self.room_manager.get_room(target_coord)
@@ -334,18 +354,24 @@ class DungeonEnv(gym.Env):
         self.room = target_room
         self.player.position_px = tile_to_top_left_px(spawn_tile)
         self.last_message = exit_config.success_message
+        reward = 0.1
+        reward += reward_unlock
         events.append("room_transition")
         event_details.append(
             {
                 "type": "room_transition",
                 "from_room": from_room_id,
                 "to_room": self.room.room_id,
+                "exit_id": exit_config.exit_id,
                 "exit_direction": exit_config.direction,
                 "target_entry": exit_config.target_entry,
                 "spawn_px": [self.player.position_px[0], self.player.position_px[1]],
             }
         )
-        return 0.1
+        if exit_config.complete_task and self.task_config is None:
+            events.append("victory")
+            reward += 1.0
+        return reward
 
     def _can_use_exit(self, exit_config: ExitConfig) -> tuple[bool, str]:
         if exit_config.exit_type == "normal":
@@ -366,6 +392,8 @@ class DungeonEnv(gym.Env):
         item_name = exit_config.requires.get("item")
         if item_name is not None and item_name not in self.player.items:
             return False, "missing_requirement"
+        if exit_config.requires.get("all_monsters_defeated") and len(self.room.monsters) > 0:
+            return False, "missing_requirement"
         return True, ""
 
     def _entry_spawn_tile(self, room: RoomState, target_entry: str) -> tuple[int, int]:
@@ -379,11 +407,16 @@ class DungeonEnv(gym.Env):
             return spawn_tile
         return room.spawns[target_entry]
 
-    def _handle_equipped_action(self, slot: EquipmentSlot, events: list[str]) -> tuple[float, bool]:
+    def _handle_equipped_action(
+        self,
+        slot: EquipmentSlot,
+        events: list[str],
+        event_details: list[dict[str, Any]],
+    ) -> tuple[float, bool]:
         tool = self.player.equipped_tool(slot)
         if slot == EquipmentSlot.A and tool == ToolType.INTERACT.value:
             self.last_message = "INTERACT"
-            return self._handle_action_a(events), False
+            return self._handle_action_a(events, event_details), False
         if slot == EquipmentSlot.B and tool == ToolType.SHIELD.value:
             self.last_message = "SHIELD"
             events.append("shield")
@@ -393,7 +426,7 @@ class DungeonEnv(gym.Env):
         events.append(f"action_{slot.value.lower()}_empty")
         return -0.01, False
 
-    def _handle_action_a(self, events: list[str]) -> float:
+    def _handle_action_a(self, events: list[str], event_details: list[dict[str, Any]]) -> float:
         player_tile = self._player_tile()
 
         for chest in self.room.chests.values():
@@ -409,9 +442,46 @@ class DungeonEnv(gym.Env):
                 events.append("talked_npc")
                 return 0.0
 
+        attack_reward = self._handle_monster_attack(events, event_details)
+        if attack_reward is not None:
+            return attack_reward
+
         self.last_message = "A NO EFFECT"
         events.append("action_a_empty")
         return -0.01
+
+    def _handle_monster_attack(
+        self,
+        events: list[str],
+        event_details: list[dict[str, Any]],
+    ) -> float | None:
+        player_tile = self._player_tile()
+        for monster in list(self.room.monsters.values()):
+            if not (
+                is_adjacent(player_tile, monster.tile_pos)
+                or aabb_overlap(self.player.position_px, self.player.size_px, monster.position_px, monster.size_px)
+            ):
+                continue
+            monster.hp -= 1
+            monster.stun_ticks_remaining = MONSTER_STUN_TICKS
+            if monster.hp <= 0:
+                self._remove_defeated_monster(monster, events, event_details, killed_by="attack")
+                self.last_message = f"ATTACK KILL {monster.monster_type.upper()}"
+                return self._task_reward("monster_kill", 0.3)
+
+            self.last_message = f"ATTACK HIT ({monster.hp}HP LEFT)"
+            events.append("monster_damaged")
+            event_details.append(
+                {
+                    "type": "monster_damaged",
+                    "monster_id": monster.monster_id,
+                    "monster_type": monster.monster_type,
+                    "monster_hp_remaining": monster.hp,
+                    "damaged_by": "attack",
+                }
+            )
+            return 0.0
+        return None
 
     def _apply_loot(self, loot: dict[str, Any], events: list[str]) -> float:
         loot_kind = str(loot.get("kind", "gold"))
@@ -421,7 +491,7 @@ class DungeonEnv(gym.Env):
             self.player.keys += max(1, amount)
             self.last_message = "GOT KEY"
             events.append("got_key")
-            return 0.4
+            return self._task_reward("key", 0.4)
         if loot_kind == "heal":
             healed = min(self.player.max_health, self.player.health + max(1, amount))
             actual = healed - self.player.health
@@ -461,7 +531,7 @@ class DungeonEnv(gym.Env):
                 self.player.position_px = tile_to_top_left_px(self.room.spawns[respawn_name])
             self.last_message = f"TRAP -{trap.damage}HP"
             events.append("trap_damage")
-            reward -= 0.5
+            reward += self._task_reward("damage", -0.5)
             if trap.single_use:
                 trap.is_active = False
 
@@ -519,7 +589,7 @@ class DungeonEnv(gym.Env):
                             "killed_by": "shield",
                         }
                     )
-                    reward += 0.3
+                    reward += self._task_reward("monster_kill", 0.3)
                 else:
                     self.last_message = f"SHIELD BLOCK ({monster.hp}HP LEFT)"
                     events.append("shield_block")
@@ -541,7 +611,7 @@ class DungeonEnv(gym.Env):
             monster.hp -= 1
             knockback_applied_px = self._apply_monster_knockback(monster)
             monster.stun_ticks_remaining = MONSTER_STUN_TICKS
-            reward -= 0.4
+            reward += self._task_reward("damage", -0.4)
             if monster.hp <= 0:
                 # Monster killed
                 monster_to_remove = monster.monster_id
@@ -557,7 +627,7 @@ class DungeonEnv(gym.Env):
                         "damage_taken": monster.damage,
                     }
                 )
-                reward += 0.3
+                reward += self._task_reward("monster_kill", 0.3)
             else:
                 self.last_message = f"HIT -{monster.damage}HP ({monster.hp}HP LEFT)"
                 events.append("monster_hit")
@@ -577,7 +647,63 @@ class DungeonEnv(gym.Env):
             break
         if monster_to_remove is not None:
             del self.room.monsters[monster_to_remove]
+            if not self.room.monsters:
+                for exit_cfg in self.room.exits:
+                    if exit_cfg.requires.get("all_monsters_defeated"):
+                        es = self.room.exit_state(exit_cfg)
+                        if not es.unlocked:
+                            es.unlocked = True
+                            es.opened = True
+                            self.last_message = "ALL MONSTERS DEFEATED - DOOR OPENED"
+                            events.append("door_unlocked")
+                            event_details.append(
+                                {
+                                    "type": "door_unlocked",
+                                    "exit_id": exit_cfg.exit_id,
+                                    "trigger": "all_monsters_defeated",
+                                }
+                            )
         return reward
+
+    def _remove_defeated_monster(
+        self,
+        monster: MonsterState,
+        events: list[str],
+        event_details: list[dict[str, Any]],
+        *,
+        killed_by: str,
+    ) -> None:
+        if monster.monster_id in self.room.monsters:
+            del self.room.monsters[monster.monster_id]
+        self.player.gold += MONSTER_KILL_GOLD_REWARD
+        events.append("monster_killed")
+        event_details.append(
+            {
+                "type": "monster_killed",
+                "monster_id": monster.monster_id,
+                "monster_type": monster.monster_type,
+                "gold_reward": MONSTER_KILL_GOLD_REWARD,
+                "killed_by": killed_by,
+            }
+        )
+        if not self.room.monsters:
+            for exit_cfg in self.room.exits:
+                if not exit_cfg.requires.get("all_monsters_defeated"):
+                    continue
+                exit_state = self.room.exit_state(exit_cfg)
+                if exit_state.unlocked:
+                    continue
+                exit_state.unlocked = True
+                exit_state.opened = True
+                self.last_message = "ALL MONSTERS DEFEATED - DOOR OPENED"
+                events.append("door_unlocked")
+                event_details.append(
+                    {
+                        "type": "door_unlocked",
+                        "exit_id": exit_cfg.exit_id,
+                        "trigger": "all_monsters_defeated",
+                    }
+                )
 
     def _get_obs(self) -> dict[str, np.ndarray]:
         grid = room_observation(self.room, self.player)
@@ -629,10 +755,68 @@ class DungeonEnv(gym.Env):
             "opened_chest",
             "pressed_button",
             "room_transition",
+            "task_finished",
             "talked_npc",
             "victory",
         }
         return any(event in progress_events for event in events)
+
+    def _resolve_task_objective(
+        self,
+        events: list[str],
+        event_details: list[dict[str, Any]],
+    ) -> float | None:
+        if self.task_config is None or self._task_finished:
+            return None
+
+        objective = self.task_config.objective
+        objective_type = objective.objective_type
+        finished = False
+        if objective_type in {"reach_exit", "reach_exit_without_trap_damage", "key_door"}:
+            finished = self._transitioned_through_target_exit(event_details, objective.target_exit)
+            if objective_type == "reach_exit_without_trap_damage" and "trap_damage" in events:
+                finished = False
+        elif objective_type == "kill_monsters":
+            if objective.target_monsters:
+                finished = all(monster_id not in self.room.monsters for monster_id in objective.target_monsters)
+            else:
+                finished = not self.room.monsters
+
+        if not finished:
+            return None
+
+        finish_reward = self._task_reward("finish", 10.0)
+        self._task_finished = True
+        events.append("task_finished")
+        if "victory" not in events:
+            events.append("victory")
+        event_details.append(
+            {
+                "type": "task_finished",
+                "task_id": self.task_config.task_id,
+                "task_type": self.task_config.task_type,
+                "objective_type": objective_type,
+                "reward": finish_reward,
+            }
+        )
+        return finish_reward
+
+    @staticmethod
+    def _transitioned_through_target_exit(
+        event_details: list[dict[str, Any]],
+        target_exit: str | None,
+    ) -> bool:
+        for detail in event_details:
+            if detail.get("type") != "room_transition":
+                continue
+            if target_exit is None or detail.get("exit_id") == target_exit:
+                return True
+        return False
+
+    def _task_reward(self, field_name: str, default: float) -> float:
+        if self.task_config is None:
+            return default
+        return float(getattr(self.task_config.reward, field_name, default))
 
     def _get_info(
         self,
@@ -641,6 +825,8 @@ class DungeonEnv(gym.Env):
         event_details: list[dict[str, Any]],
         auto_reset: bool = False,
     ) -> dict[str, Any]:
+        finish = "task_finished" in events
+        victory = "victory" in events or finish
         info = {
             "room_id": self.room.room_id,
             "room_coord": self.room.coord,
@@ -663,12 +849,16 @@ class DungeonEnv(gym.Env):
             "picked_key": "got_key" in events,
             "unlocked_door": "door_unlocked" in events,
             "entered_new_room": "room_transition" in events,
-            "task_success": "victory" in events,
+            "task_success": victory,
+            "finish": finish,
             "no_progress_steps": self.no_progress_steps,
         }
+        if self.task_config is not None:
+            info["task_id"] = self.task_config.task_id
+            info["task_type"] = self.task_config.task_type
         if auto_reset:
             info["auto_reset"] = True
-        if "victory" in events:
+        if victory:
             info["victory"] = True
         if "game_over" in events:
             info["game_over"] = True

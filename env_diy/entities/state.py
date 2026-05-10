@@ -13,7 +13,7 @@ from ..core.constants import (
     PLAYER_GOLD_DEFAULT,
     PLAYER_HP_DEFAULT,
     PLAYER_KEYS_DEFAULT,
-    PLAYER_SPEED_PX_PER_STEP,
+    PLAYER_SPEED_PX_PER_TICK,
     TILE_SIZE,
 )
 
@@ -38,7 +38,7 @@ class ToolType(str, Enum):
 class PlayerState:
     position_px: PixelPos
     size_px: int = ENTITY_SIZE_PX
-    speed_px_per_step: float = PLAYER_SPEED_PX_PER_STEP
+    speed_px_per_step: float = PLAYER_SPEED_PX_PER_TICK
     health: int = PLAYER_HP_DEFAULT
     max_health: int = PLAYER_HP_DEFAULT
     gold: int = PLAYER_GOLD_DEFAULT

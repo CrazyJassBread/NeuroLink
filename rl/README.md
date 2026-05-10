@@ -8,12 +8,13 @@ Run from the repository root:
 
 ```bash
 source .venv/bin/activate
-python rl/train_random.py --episodes 5 --max-steps 200 --seed 0
+python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 0
 ```
 
 The script:
 
 - creates `env_diy.envs.DungeonEnv` directly;
+- optionally wraps it with `ActionRepeatWrapper` for RL-only frame skip;
 - samples actions from `env.action_space`;
 - validates observations against `env.observation_space`;
 - records episode reward, length, termination flags, and game-over status;
@@ -31,6 +32,25 @@ Use a custom output file:
 python rl/train_random.py --episodes 2 --max-steps 20 --seed 0 --output rl/outputs/smoke.jsonl
 ```
 
+## Action Repeat
+
+The base `env_diy` environment moves the player at `1 px/tick`; default monster speed is `0.5 px/tick`. This keeps environment physics fine-grained, but random or early RL policies may explore too slowly if every agent decision advances only one pixel.
+
+Use `--action-repeat` in RL scripts to repeat the same action for multiple underlying environment ticks:
+
+```bash
+python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 0
+```
+
+`max_steps` is the outer agent step count. Actual environment ticks are approximately `max_steps * action_repeat`, unless `terminated` or `truncated` stops the repeat early. Rewards from inner ticks are summed and the final `info` includes `action_repeat`, `inner_steps`, and `repeated_reward`.
+
+Recommended starting point:
+
+- use `--action-repeat 4` for smoke training;
+- try `--action-repeat 8` or larger `--max-steps` if exploration is still too sparse;
+- prefer reward shaping, curriculum, and single-task maps for task-specific learning signals;
+- keep action repeat in RL wrappers/scripts, not in base environment movement speed.
+
 Rendering is off by default so the script can run in headless test environments. To explicitly call `env.render()` every step:
 
 ```bash
@@ -45,6 +65,35 @@ python -m pytest -q tests/test_rl_smoke.py
 ```
 
 The smoke tests cover env creation, reset/step return shapes, sampled actions, observation validation, explicit render output, and the CLI JSONL output path.
+
+## Single-task Rooms
+
+Use `train_single_task.py` to verify a focused challenge room can be loaded and
+stepped by RL-style code. The script uses a random policy and reports finish
+rate; it is a smoke test, not a training-quality baseline.
+
+```bash
+source .venv/bin/activate
+python rl/train_single_task.py --task avoid_traps --episodes 1 --max-steps 20 --action-repeat 4 --seed 0
+python rl/train_single_task.py --task kill_monsters --episodes 1 --max-steps 20 --action-repeat 4 --seed 0
+python rl/train_single_task.py --task key_door --episodes 1 --max-steps 20 --action-repeat 4 --seed 0
+```
+
+Supported task directories are:
+
+- `env_diy/map_data/dungeons/avoid_traps/room_001.json`
+- `env_diy/map_data/dungeons/kill_monsters/room_001.json`
+- `env_diy/map_data/dungeons/key_door/room_001.json`
+
+Useful options:
+
+```bash
+python rl/train_single_task.py --task avoid_traps --room room_001 --episodes 5
+python rl/train_single_task.py --config env_diy/map_data/dungeons/key_door/room_001.json --episodes 2
+```
+
+Episode logs include reward, length, `finish`, `terminated`, and `truncated`.
+JSONL output defaults to `rl/outputs/single_task_training.jsonl`.
 
 ## PPO Training (Stable Baselines3)
 
@@ -68,6 +117,7 @@ Key options:
 | `--n-eval-episodes` | 5 | Greedy evaluation episodes after training |
 | `--max-steps` | 500 | Max steps per evaluation episode |
 | `--seed` | 0 | Random seed |
+| `--action-repeat` | 1 | Repeat each policy action for multiple env ticks |
 | `--config` | prototype dungeon | Dungeon config JSON path |
 | `--save-path` | `rl/outputs/ppo_model` | Model save path (SB3 appends `.zip`) |
 | `--output` | `rl/outputs/ppo_eval.jsonl` | Evaluation summary JSONL |

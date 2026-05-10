@@ -1,0 +1,52 @@
+{
+  "task_id": "avoid_traps_001",
+  "task_type": "avoid_traps",
+  "room_id": "room_001",
+  "objective": {
+    "type": "reach_exit_without_trap_damage",
+    "target_exit": "north_exit"
+  },
+  "reward": {
+    "finish": 10.0,
+    "step": -0.01,
+    "damage": -1.0
+  },
+  "layout": [
+    "..........",
+    ".##.##.##.",
+    "..........",
+    ".##.##.##.",
+    "..........",
+    "..........",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [4, 6],
+    "from_south": [4, 6]
+  },
+  "default_spawn": "default",
+  "objects": [
+    {"id": "trap_1", "kind": "trap", "pos": [4, 2], "damage": 1, "respawn_to": "default"},
+    {"id": "trap_2", "kind": "trap", "pos": [8, 4], "damage": 1, "respawn_to": "default"},
+    {"id": "trap_3", "kind": "trap", "pos": [0, 2], "damage": 1, "respawn_to": "default"}
+  ],
+  "exits": [
+    {
+      "id": "north_exit",
+      "direction": "north",
+      "target_room": "room_001",
+      "target_entry": "from_south",
+      "type": "normal",
+      "success_message": "CLEARED!"
+    },
+    {
+      "id": "south_exit",
+      "direction": "south",
+      "target_room": "room_001",
+      "target_entry": "from_south",
+      "type": "normal",
+      "success_message": "RETRY"
+    }
+  ]
+}

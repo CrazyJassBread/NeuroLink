@@ -194,16 +194,17 @@ Useful overrides:
 
 - `--env.env_diy.image False`: vector-only training for faster smoke runs.
 - `--env.env_diy.length 400`: adapter-side time limit.
-- `--env.env_diy.move_speed_px 4`: default movement scale, applied as 1px collision sub-steps.
+- `--env.env_diy.move_speed_px 1`: base movement scale in pixels per environment tick.
 - `--env.env_diy.agent_noop_enabled False`: expose six shifted training actions so no-op is unavailable to the agent.
 - `--env.env_diy.stuck_penalty_enabled False`: default disabled; enable only after baseline behavior is understood.
 - `--run.envs 1`: simplest single-worker debugging.
 - `--logger.outputs jsonl`: JSONL-only logs if Scope output is not needed.
 
-Recommended initial exploration settings are `move_speed_px=4`,
-`length=400`, no action repeat/repeat wrapper for `env_diy`, no stuck penalty,
-and the existing movement reward design. The bundled `env_diy` config follows
-these defaults.
+The base `env_diy` environment uses 1px movement. The lightweight `rl/`
+scripts provide `--action-repeat` for RL-only frame skip; DreamerV3 has its own
+wrapper stack, so keep physics speed separate from training repeat settings.
+If exploration is sparse, increase adapter length or add a training wrapper
+rather than raising the base environment speed.
 
 ## 7. Known Limitations
 

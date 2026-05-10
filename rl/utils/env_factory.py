@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import gymnasium as gym
+
 from env_diy.envs import DungeonEnv
+
+from .wrappers import ActionRepeatWrapper
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -14,8 +18,12 @@ def make_env(
     *,
     render_mode: str | None = None,
     seed: int | None = None,
-) -> DungeonEnv:
+    action_repeat: int = 1,
+) -> gym.Env:
     """Create the DIY dungeon environment for lightweight RL smoke runs."""
+    if action_repeat < 1:
+        raise ValueError("action_repeat must be >= 1")
+
     dungeon_config = Path(config_path) if config_path is not None else DEFAULT_DUNGEON_CONFIG
     if not dungeon_config.is_absolute():
         dungeon_config = PROJECT_ROOT / dungeon_config
@@ -27,4 +35,6 @@ def make_env(
 
     if seed is not None:
         env.action_space.seed(seed)
-    return env
+    if action_repeat == 1:
+        return env
+    return ActionRepeatWrapper(env, repeat=action_repeat)

@@ -1,0 +1,55 @@
+{
+  "task_id": "key_door_001",
+  "task_type": "key_door",
+  "room_id": "room_001",
+  "objective": {
+    "type": "key_door",
+    "target_exit": "north_exit"
+  },
+  "reward": {
+    "finish": 10.0,
+    "step": -0.01,
+    "damage": -1.0,
+    "key": 0.5,
+    "door_unlock": 0.5
+  },
+  "layout": [
+    "..........",
+    "########..",
+    "..........",
+    "...#..#...",
+    "..........",
+    "..#....#..",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [4, 6],
+    "from_south": [4, 6]
+  },
+  "default_spawn": "default",
+  "objects": [
+    {"id": "chest_key", "kind": "chest", "pos": [8, 2], "loot": {"kind": "key", "key_id": "single_task_key"}},
+    {"id": "monster_guard", "kind": "monster", "pos": [6, 2], "monster_type": "patroller", "patrol_span": 32, "hp": 2, "damage": 1}
+  ],
+  "exits": [
+    {
+      "id": "north_exit",
+      "direction": "north",
+      "target_room": "room_001",
+      "target_entry": "from_south",
+      "type": "locked_key",
+      "requires": {"key_count": 1, "consume_key": true},
+      "blocked_message": "NEED KEY",
+      "success_message": "CLEARED!"
+    },
+    {
+      "id": "south_exit",
+      "direction": "south",
+      "target_room": "room_001",
+      "target_entry": "from_south",
+      "type": "normal",
+      "success_message": "RETRY"
+    }
+  ]
+}

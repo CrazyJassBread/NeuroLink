@@ -46,7 +46,7 @@ Current prototype progression examples:
 - The start room has a locked east door requiring a key.
 - Door and room transition behavior is driven by room JSON config.
 
-There is no current win condition or dungeon-complete terminal state. Episodes end only when player health reaches `0`.
+Prototype dungeon episodes can still end through legacy victory checks. Single-task rooms define explicit objectives; completing one returns `terminated=True` and reports `info["finish"] = True`.
 
 ## 4. Rooms, Exits, and Doors
 
@@ -67,7 +67,7 @@ Exit types:
 |---|---|
 | `normal` | No requirement. Moving flush into the configured boundary exit transitions rooms. |
 | `locked_key` | Requires `key_count` while locked. If `consume_key=true`, keys are consumed once on first unlock. |
-| `conditional` | Requires config conditions such as `button_pressed` or `item`. |
+| `conditional` | Requires config conditions such as `button_pressed`, `item`, or `all_monsters_defeated`. |
 
 Room transitions:
 
@@ -112,7 +112,7 @@ Current `PlayerState` fields include:
 | `tools` | `["interact", "shield"]` | Equip-capable tool list. |
 | `equipped` | `{"A": "interact", "B": "shield"}` | Current A/B slot tools. |
 
-> Note: The player starts with `"sword"` in `items`, but sword attack behavior is not currently implemented. The A slot defaults to `interact`.
+> Note: The A slot defaults to `interact`; after chest/NPC interaction checks, it can attack an adjacent or overlapping monster for 1 HP.
 
 Game over occurs when `health <= 0`.
 
@@ -144,9 +144,9 @@ Loot kinds:
 Monster defaults:
 
 - Size: `16 x 16`.
-- Default speed: `1.0 px/step`, equal to `player_speed * 0.5`.
+- Default speed: `0.5 px/tick`, equal to `player_speed * 0.5`.
 - Default damage: `1`.
-- Default hp: at least `1`, but current code does not implement player attacks or monster death.
+- Default hp: at least `1`; monsters can be damaged by A/interact fallback attacks, shield contact, and damaging collisions.
 - Stun duration: `60` environment ticks.
 - Preferred knockback: `16px`, with fallback distances `12px`, `8px`, `4px`, or `0px`.
 
@@ -163,7 +163,7 @@ Update and contact behavior:
 - Monsters update even on `no-op`, A/interact, and B/shield actions.
 - Stunned monsters decrement stun ticks and do not move.
 - Monster overlap without shield deals damage, applies monster knockback/stun, adds `monster_hit`, and gives `-0.4`.
-- Shield overlap prevents damage, applies the same monster knockback/stun, adds `shield_block`, and gives no attack reward.
+- Shield overlap prevents damage, applies the same monster knockback/stun, damages the monster by 1 HP, and adds `shield_block` or `monster_killed`.
 - Stunned monsters do not apply contact damage.
 
 ## 8. Items and Interactions
@@ -173,7 +173,8 @@ A button:
 - Action ID `5`.
 - Dispatches the currently equipped A-slot tool.
 - Default A tool is `interact`.
-- Interact opens adjacent unopened chests or talks to adjacent NPCs.
+- Interact opens adjacent unopened chests or talks to adjacent NPCs first.
+- If no chest or NPC can be used, A attacks an adjacent or overlapping monster for 1 HP.
 - If nothing is adjacent, event `action_a_empty` is emitted and reward is `-0.01`.
 
 B button:
@@ -182,7 +183,7 @@ B button:
 - Dispatches the currently equipped B-slot tool.
 - Default B tool is `shield`.
 - Shield is active only for the current environment tick.
-- Shield does not kill monsters and does not grant positive attack reward.
+- Shield contact damages monsters and can kill them.
 
 Buttons and traps:
 
@@ -203,18 +204,20 @@ Rewards are currently implemented directly in `DungeonEnv` methods, not centrali
 | Room transition | `+0.1` | Added after movement reward, so a moving transition usually nets `+0.09`. |
 | Failed locked/conditional door | `-0.02` | `blocked_locked` or `missing_requirement`. |
 | Press button | `+0.1` | First press only. |
-| Trap damage | `-0.5` | May terminate if health reaches `0`. |
-| Monster hit | `-0.4` | Damage plus knockback/stun. |
-| Shield block | `0.0` | Prevents monster contact damage. |
+| Trap damage | `-0.5` by default, task `damage` reward in single-task rooms | May terminate if health reaches `0`. |
+| Monster hit | `-0.4` by default, task `damage` reward in single-task rooms | Damage plus knockback/stun. |
+| Shield block | `0.0` | Prevents monster contact damage and damages the monster. |
+| Monster kill | `+0.3` by default, task `monster_kill` reward in single-task rooms | Removes the monster and adds gold. |
 | Open chest with key loot | `+0.4` | Also emits `opened_chest`. |
 | Open chest with heal loot | `+0.2` if actual healing, else `+0.05` | Also emits `opened_chest`. |
 | Open chest with item loot | `+0.3` | Adds configured item if not already present. |
 | Open chest with gold/default loot | `+0.2` | Adds gold. |
 | Talk to NPC | `0.0` | Sets message. |
 | Monster update | `0.0` | Adds `monsters_updated` if room has monsters. |
+| Task finish | task `finish` reward, default `+10.0` | Emits `task_finished`, `victory`, and terminates. |
 | Game over | no additional explicit reward | Existing trap/monster penalty applies first. |
 
-> Note: There is currently no reward for killing monsters because player attack/monster death is not implemented.
+Single-task room reward config supports `step`, `damage`, `key`, `door_unlock`, `monster_kill`, and `finish`. Missing keys use defaults.
 
 ## 10. Action Space
 
@@ -234,7 +237,9 @@ Action semantics:
 
 - Every action advances exactly one environment tick.
 - `no-op` does not move the player, but monsters still update.
-- Movement is pixel-level, not tile jumps. `DungeonEnv(move_speed_px=4)` is the default, implemented as up to four 1px collision-checked sub-steps per movement action.
+- Movement is pixel-level, not tile jumps. `DungeonEnv` defaults to `move_speed_px=1.0`, so a movement action advances the player by 1 pixel per environment tick.
+- Default monster speed is `0.5 px/tick`, derived from `player_speed * 0.5`.
+- RL training scripts can use action repeat, such as `--action-repeat 4`, to repeat one agent decision across multiple base environment ticks without changing environment physics.
 - A/interact and B/shield also allow monsters and contact checks to run.
 - The current `Discrete(7)` API cannot express simultaneous movement plus shield.
 - Human play maps held X to repeated B/shield with priority over held movement.
@@ -360,6 +365,8 @@ Current `info` fields:
 | `unlocked_door` | True on steps that unlock a locked door. |
 | `entered_new_room` | True on room transition steps. |
 | `task_success` | True on victory/task-success terminal steps. |
+| `finish` | True on the step a configured single-task objective finishes. |
+| `task_id` / `task_type` | Present for configured single-task rooms. |
 | `no_progress_steps` | Consecutive steps without movement or configured progress events. |
 
 Important: `info["events"]` is a list of strings, not a list of event objects. Structured fields are in `info["event_details"]`.
@@ -376,7 +383,8 @@ Example event strings:
 - `pressed_button`, `trap_damage`
 - `blocked_locked`, `missing_requirement`
 - `used_key`, `door_unlocked`, `room_transition`
-- `monsters_updated`, `monster_hit`
+- `monsters_updated`, `monster_hit`, `monster_damaged`, `monster_killed`
+- `task_finished`, `victory`
 - `game_over`
 
 Structured detail examples:
@@ -386,9 +394,20 @@ Structured detail examples:
     "type": "room_transition",
     "from_room": "room_0_0",
     "to_room": "room_1_0",
+    "exit_id": "east_exit",
     "exit_direction": "east",
     "target_entry": "from_west",
     "spawn_px": [16.0, 48.0],
+}
+```
+
+```python
+{
+    "type": "task_finished",
+    "task_id": "avoid_traps_001",
+    "task_type": "avoid_traps",
+    "objective_type": "reach_exit_without_trap_damage",
+    "reward": 10.0,
 }
 ```
 
@@ -469,6 +488,24 @@ Dungeon index files use schema version `1`:
 }
 ```
 
+Single-task challenge rooms can also be self-contained JSON files under
+`env_diy/map_data/dungeons/{avoid_traps,kill_monsters,key_door}/room_001.json`.
+They include normal room fields plus task metadata:
+
+```json
+{
+  "task_id": "avoid_traps_001",
+  "task_type": "avoid_traps",
+  "room_id": "room_001",
+  "objective": {"type": "reach_exit_without_trap_damage", "target_exit": "north_exit"},
+  "reward": {"finish": 10.0, "step": -0.01, "damage": -1.0}
+}
+```
+
+Supported task types are `avoid_traps`, `kill_monsters`, and `key_door`.
+Supported objective types are `reach_exit`, `reach_exit_without_trap_damage`,
+`kill_monsters`, and `key_door`.
+
 Room files include:
 
 - `id`
@@ -511,7 +548,7 @@ Current random smoke script:
 
 ```bash
 source .venv/bin/activate
-python rl/train_random.py --episodes 5 --max-steps 200 --seed 0
+python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 0
 ```
 
 Environment creation:
@@ -527,12 +564,13 @@ RL considerations:
 
 - `no-op` advances ticks and monsters can move.
 - A/interact and B/shield also advance ticks.
-- Movement is pixel-level (`move_speed_px=4` by default) while map layout and exits are tile-based.
+- Movement is pixel-level (`move_speed_px=1.0` by default) while map layout and exits are tile-based.
+- In `rl/` scripts, `max_steps` counts outer agent decisions. Actual environment ticks are approximately `max_steps * action_repeat`, unless termination or truncation stops early.
 - The DreamerV3 adapter disables training no-op by default by exposing six shifted actions: training IDs `0..5` map to base environment actions `1..6`. Human play and direct Gymnasium use can still choose no-op.
 - Optional stuck penalty is disabled by default. If enabled, consecutive no-progress steps beyond the configured threshold receive the configured small penalty.
 - Current action space is discrete and cannot express movement plus shield simultaneously.
 - Observation is current-room focused, not a full dungeon state.
-- Reward shaping is simple and local; there is no explicit win reward yet.
+- Reward shaping is simple and local; single-task rooms add explicit finish rewards and finish-rate diagnostics.
 - `truncated` is always false unless an external wrapper adds time limits.
 - Use `observation_space.contains(obs)` in smoke tests; current code expects it to pass.
 
@@ -583,4 +621,12 @@ if "shield_block" in info["events"]:
 ```bash
 source .venv/bin/activate
 python rl/train_random.py --episodes 2 --max-steps 20 --seed 0
+```
+
+Single-task smoke:
+
+```bash
+python rl/train_single_task.py --task avoid_traps --episodes 1 --max-steps 20 --seed 0
+python rl/train_single_task.py --task kill_monsters --episodes 1 --max-steps 20 --seed 0
+python rl/train_single_task.py --task key_door --episodes 1 --max-steps 20 --seed 0
 ```

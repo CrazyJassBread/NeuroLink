@@ -59,7 +59,7 @@ class EnvDIY(embodied.Env):
       length=500,
       logs=True,
       seed=None,
-      move_speed_px=4,
+      move_speed_px=1,
       agent_noop_enabled=False,
       stuck_penalty_enabled=False,
       stuck_penalty_steps=30,

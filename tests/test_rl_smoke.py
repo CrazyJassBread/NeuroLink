@@ -83,7 +83,7 @@ class RLSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_path = Path(tmp_dir) / "random.jsonl"
 
-            results = run_random_training(episodes=2, max_steps=20, seed=0, output=output_path)
+            results = run_random_training(episodes=2, max_steps=20, seed=0, action_repeat=4, output=output_path)
 
             lines = output_path.read_text(encoding="utf-8").splitlines()
 
@@ -111,6 +111,8 @@ class RLSmokeTests(unittest.TestCase):
                     "20",
                     "--seed",
                     "0",
+                    "--action-repeat",
+                    "4",
                     "--output",
                     str(output_path),
                 ],

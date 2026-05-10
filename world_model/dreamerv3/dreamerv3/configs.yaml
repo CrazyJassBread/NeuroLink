@@ -35,7 +35,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0, logs: False, length: 36000}
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
-    env_diy: {config_path: env_diy/map_data/dungeons/prototype/dungeon.json, image: True, image_size: [64, 64], length: 400, logs: True, use_seed: True, move_speed_px: 4, agent_noop_enabled: False, stuck_penalty_enabled: False, stuck_penalty_steps: 30, stuck_penalty: -0.01}
+    env_diy: {config_path: env_diy/map_data/dungeons/prototype/dungeon.json, image: True, image_size: [64, 64], length: 400, logs: True, use_seed: True, move_speed_px: 1, agent_noop_enabled: False, stuck_penalty_enabled: False, stuck_penalty_steps: 30, stuck_penalty: -0.01}
 
   replay:
     size: 5e6

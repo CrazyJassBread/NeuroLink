@@ -159,7 +159,7 @@ def test_env_diy_training_noop_is_mapped_to_valid_action(monkeypatch):
         length=10,
         logs=True,
         seed=0,
-        move_speed_px=4,
+        move_speed_px=1,
         agent_noop_enabled=False,
     )
     try:

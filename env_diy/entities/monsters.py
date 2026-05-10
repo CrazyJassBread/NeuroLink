@@ -3,7 +3,13 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from ..core.constants import GRID_HEIGHT, GRID_WIDTH, MONSTER_DEFAULT_HP, MONSTER_SIZE_PX, MONSTER_SPEED_PX_PER_STEP
+from ..core.constants import (
+    GRID_HEIGHT,
+    GRID_WIDTH,
+    MONSTER_DEFAULT_HP,
+    MONSTER_SIZE_PX,
+    MONSTER_SPEED_PX_PER_TICK,
+)
 from .state import (
     GridPos,
     PixelPos,
@@ -19,7 +25,7 @@ class MonsterState:
     monster_type: str
     position_px: PixelPos
     size_px: int = MONSTER_SIZE_PX
-    speed_px_per_step: float = MONSTER_SPEED_PX_PER_STEP
+    speed_px_per_step: float = MONSTER_SPEED_PX_PER_TICK
     hp: int = MONSTER_DEFAULT_HP
     max_hp: int = MONSTER_DEFAULT_HP
     damage: int = 1
@@ -54,7 +60,7 @@ def build_monster_from_dict(data: dict) -> MonsterState:
         monster_type=monster_type,
         position_px=position_px,
         size_px=max(1, int(data.get("size_px", MONSTER_SIZE_PX))),
-        speed_px_per_step=float(data.get("speed_px_per_step", MONSTER_SPEED_PX_PER_STEP)),
+        speed_px_per_step=float(data.get("speed_px_per_step", MONSTER_SPEED_PX_PER_TICK)),
         hp=hp_val,
         max_hp=hp_val,
         damage=max(1, int(data.get("damage", 1))),

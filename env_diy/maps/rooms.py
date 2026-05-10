@@ -8,6 +8,7 @@ from typing import Any
 from ..core.constants import GRID_HEIGHT, GRID_WIDTH
 from ..entities import ButtonState, ChestState, GridPos, NPCState, TrapState
 from ..entities.monsters import MonsterState, build_monster_from_dict
+from .tasks import TaskConfig, parse_task_config
 
 
 SUPPORTED_OBJECT_KINDS = {
@@ -20,7 +21,7 @@ SUPPORTED_OBJECT_KINDS = {
 
 SUPPORTED_EXIT_DIRECTIONS = {"north", "south", "west", "east"}
 SUPPORTED_EXIT_TYPES = {"normal", "locked_key", "conditional"}
-SUPPORTED_REQUIREMENT_KEYS = {"key_count", "consume_key", "button_pressed", "item"}
+SUPPORTED_REQUIREMENT_KEYS = {"key_count", "consume_key", "button_pressed", "item", "all_monsters_defeated"}
 LAYOUT_TILES = {"#", "."}
 
 EXIT_DIRECTION_TILES: dict[str, tuple[GridPos, GridPos]] = {
@@ -105,6 +106,7 @@ class ExitConfig:
     requires: dict[str, Any] = field(default_factory=dict)
     blocked_message: str = "BLOCKED"
     success_message: str = "MOVED"
+    complete_task: bool = False
 
     def contains(self, pos: GridPos) -> bool:
         return pos in self.tiles
@@ -200,10 +202,15 @@ class RoomManager:
         self.max_monsters = 0
         self.start_room = (0, 0)
         self.start_room_id = ""
+        self.task_config: TaskConfig | None = None
         self._load_dungeon()
 
     def _load_dungeon(self) -> None:
         raw = self._read_json(self.room_file)
+        if self._is_single_task_room(raw):
+            self._load_single_task_room(raw)
+            return
+
         schema_version = raw.get("schema_version")
         if schema_version != 1:
             raise MapValidationError(self.room_file, "schema_version", "only schema_version=1 is supported")
@@ -234,6 +241,23 @@ class RoomManager:
             raise MapValidationError(self.room_file, "start_room", "must be a room id string")
 
         self._validate_exit_targets()
+
+    @staticmethod
+    def _is_single_task_room(raw: dict[str, Any]) -> bool:
+        return "task_id" in raw or "task_type" in raw or "objective" in raw
+
+    def _load_single_task_room(self, raw: dict[str, Any]) -> None:
+        self.task_config = parse_task_config(raw, self.room_file, MapValidationError)
+        room_payload = dict(raw)
+        room_payload["id"] = self.task_config.room_id
+        room_payload.setdefault("coord", [0, 0])
+
+        template = self._build_room_template(self.room_file, room_payload)
+        self._register_template(template, self.room_file)
+        self.start_room_id = template.room_id
+        self.start_room = template.coord
+        self._validate_exit_targets()
+        self._validate_task_config()
 
     def _register_template(self, template: RoomTemplate, room_path: Path) -> None:
         if template.coord in self.room_templates:
@@ -413,6 +437,7 @@ class RoomManager:
                     requires=requires,
                     blocked_message=str(entry.get("blocked_message", "BLOCKED")),
                     success_message=str(entry.get("success_message", "MOVED")),
+                    complete_task=bool(entry.get("complete_task", False)),
                 )
             )
 
@@ -459,6 +484,9 @@ class RoomManager:
         if "item" in requires:
             requires["item"] = self._require_string(requires.get("item"), f"{field_path}.item", room_path)
             has_condition = True
+        if "all_monsters_defeated" in requires:
+            requires["all_monsters_defeated"] = bool(requires["all_monsters_defeated"])
+            has_condition = True
         if not has_condition:
             raise MapValidationError(
                 room_path,
@@ -499,6 +527,30 @@ class RoomManager:
                             f"'{exit_config.target_room_id}'"
                         ),
                     )
+
+    def _validate_task_config(self) -> None:
+        if self.task_config is None:
+            return
+
+        template = self.template_by_room_id(self.task_config.room_id)
+        objective = self.task_config.objective
+        if objective.target_exit is not None and all(
+            exit_config.exit_id != objective.target_exit for exit_config in template.exits
+        ):
+            raise MapValidationError(
+                self.room_file,
+                "objective.target_exit",
+                f"unknown exit '{objective.target_exit}' in task room '{template.room_id}'",
+            )
+
+        monster_ids = {entry.object_id for entry in template.objects if entry.kind == "monster"}
+        missing_monsters = sorted(set(objective.target_monsters) - monster_ids)
+        if missing_monsters:
+            raise MapValidationError(
+                self.room_file,
+                "objective.target_monsters",
+                f"unknown monster ids: {', '.join(missing_monsters)}",
+            )
 
     def template_by_room_id(self, room_id: str) -> RoomTemplate:
         coord = self.room_ids[room_id]

@@ -19,7 +19,8 @@ from env_diy.core.constants import (
     MONSTER_HIT_KNOCKBACK_PX,
     MONSTER_SPEED_RATIO,
     MONSTER_STUN_TICKS,
-    PLAYER_SPEED_PX_PER_STEP,
+    MONSTER_SPEED_PX_PER_TICK,
+    PLAYER_SPEED_PX_PER_TICK,
     TILE_SIZE,
 )
 from env_diy.entities import tile_from_position_px, tile_to_top_left_px
@@ -66,7 +67,7 @@ class DungeonEnvTests(unittest.TestCase):
             obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
 
         delta_x = env.player.position_px[0] - before[0]
-        self.assertEqual(delta_x, 4.0)
+        self.assertEqual(delta_x, PLAYER_SPEED_PX_PER_TICK)
         self.assertLess(delta_x, TILE_SIZE)
         self.assertEqual(env.player.position_px[1], before[1])
         self.assertEqual(info["agent_pos"], env.player.position_px)
@@ -115,7 +116,9 @@ class DungeonEnvTests(unittest.TestCase):
             env.reset()
             monster = next(iter(env.room.monsters.values()))
 
-        self.assertEqual(monster.speed_px_per_step, PLAYER_SPEED_PX_PER_STEP * MONSTER_SPEED_RATIO)
+        self.assertEqual(PLAYER_SPEED_PX_PER_TICK, 1.0)
+        self.assertEqual(monster.speed_px_per_step, MONSTER_SPEED_PX_PER_TICK)
+        self.assertEqual(monster.speed_px_per_step, PLAYER_SPEED_PX_PER_TICK * MONSTER_SPEED_RATIO)
         self.assertEqual(MONSTER_SPEED_RATIO, 0.5)
 
     def test_monster_speed_override_still_works(self) -> None:
@@ -125,7 +128,7 @@ class DungeonEnvTests(unittest.TestCase):
             monster = next(iter(env.room.monsters.values()))
 
         self.assertEqual(monster.speed_px_per_step, 0.75)
-        self.assertLess(monster.speed_px_per_step, PLAYER_SPEED_PX_PER_STEP)
+        self.assertLess(monster.speed_px_per_step, PLAYER_SPEED_PX_PER_TICK)
 
     def test_pixel_to_tile_conversion_uses_entity_center(self) -> None:
         tile = tile_from_position_px((10.0, 0.0), TILE_SIZE)
@@ -352,11 +355,11 @@ class DungeonEnvTests(unittest.TestCase):
             env = DungeonEnv(self._write_trigger_dungeon(Path(tmp_dir)))
             env.reset()
 
-            for _ in range(2):
+            for _ in range(8):
                 obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
             self.assertIn("pressed_button", info["events"])
 
-            for _ in range(4):
+            for _ in range(16):
                 obs, reward, terminated, truncated, info = env.step(ACTION_RIGHT)
 
         self.assertIn("trap_damage", info["events"])

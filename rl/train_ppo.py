@@ -88,6 +88,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0, help="Random seed.")
     parser.add_argument("--render", action="store_true", help="Call env.render() during evaluation.")
     parser.add_argument(
+        "--action-repeat",
+        type=int,
+        default=1,
+        help="Repeat each PPO action for this many environment ticks.",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         default=None,
@@ -116,6 +122,7 @@ def run_ppo_training(
     seed: int,
     config: Path | None = None,
     render: bool = False,
+    action_repeat: int = 1,
     output: Path = DEFAULT_OUTPUT_PATH,
     save_path: Path = DEFAULT_SAVE_PATH,
 ) -> list[EpisodeResult]:
@@ -125,9 +132,16 @@ def run_ppo_training(
         raise ValueError("--n-eval-episodes must be >= 1")
     if max_steps < 1:
         raise ValueError("--max-steps must be >= 1")
+    if action_repeat < 1:
+        raise ValueError("--action-repeat must be >= 1")
 
     # Training env wrapped in Monitor so SB3 can collect episode stats.
-    raw_train_env = make_env(config_path=config, render_mode=None, seed=seed)
+    raw_train_env = make_env(
+        config_path=config,
+        render_mode=None,
+        seed=seed,
+        action_repeat=action_repeat,
+    )
     train_env = Monitor(_EpisodeKeyAdapter(raw_train_env))
 
     policy_kwargs = {"features_extractor_class": DungeonFeaturesExtractor}
@@ -142,7 +156,12 @@ def run_ppo_training(
     print(f"Model saved to {save_path}.zip")
 
     # Greedy evaluation on a separate env instance.
-    eval_env = make_env(config_path=config, render_mode="rgb_array" if render else None, seed=seed + 1)
+    eval_env = make_env(
+        config_path=config,
+        render_mode="rgb_array" if render else None,
+        seed=seed + 1,
+        action_repeat=action_repeat,
+    )
     results: list[EpisodeResult] = []
     try:
         for episode in range(n_eval_episodes):
@@ -202,6 +221,7 @@ def main() -> None:
         seed=args.seed,
         config=args.config,
         render=args.render,
+        action_repeat=args.action_repeat,
         output=args.output,
         save_path=args.save_path,
     )

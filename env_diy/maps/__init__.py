@@ -20,6 +20,7 @@ from .rooms import (
     first_valid_entry_spawn_tile,
     opposite_direction,
 )
+from .tasks import ObjectiveConfig, TaskConfig, TaskRewardConfig
 
 __all__ = [
     "EXIT_DIRECTION_TILES",
@@ -37,6 +38,9 @@ __all__ = [
     "RoomManager",
     "RoomState",
     "RoomTemplate",
+    "ObjectiveConfig",
+    "TaskConfig",
+    "TaskRewardConfig",
     "direction_from_entry_name",
     "entry_spawn_tile_candidates",
     "exit_tiles_for_direction",
