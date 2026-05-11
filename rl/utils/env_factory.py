@@ -4,9 +4,7 @@ from pathlib import Path
 
 import gymnasium as gym
 
-from env_diy.envs import DungeonEnv
-
-from .wrappers import ActionRepeatWrapper
+from env_diy.env import make_env as make_public_env
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -29,12 +27,15 @@ def make_env(
         dungeon_config = PROJECT_ROOT / dungeon_config
 
     try:
-        env = DungeonEnv(dungeon_config, render_mode=render_mode)
+        env = make_public_env(
+            dungeon_config,
+            api="gym",
+            render_mode=render_mode,
+            action_repeat=action_repeat,
+        )
     except Exception as exc:  # noqa: BLE001 - preserve source exception in a clearer message.
         raise RuntimeError(f"Failed to create DungeonEnv from config '{dungeon_config}': {exc}") from exc
 
     if seed is not None:
         env.action_space.seed(seed)
-    if action_repeat == 1:
-        return env
-    return ActionRepeatWrapper(env, repeat=action_repeat)
+    return env

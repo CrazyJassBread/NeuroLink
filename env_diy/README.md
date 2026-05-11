@@ -4,13 +4,24 @@
 
 It does not use commercial sprites, maps, music, names, or proprietary data. Keep new content original and programmatic.
 
+Recommended public entrypoint:
+
+```python
+from env_diy.env import make_env
+
+env = make_env("env_diy/map_data/dungeons/prototype/dungeon.json", api="gym")
+```
+
+`make_env(api="gym")` returns the canonical Gymnasium wrapper with `auto_reset_on_step=False`.
+`env_diy.envs.DungeonEnv` and `env_diy.DungeonEnv` remain available as compatibility aliases that keep legacy auto-reset behavior.
+
 ## What This Environment Is
 
 - Fixed-size top-down dungeon rooms with Gymnasium `reset()` / `step()` semantics.
 - Player and monsters move in pixel coordinates, not tile jumps.
 - Base player speed is `1 px/tick`; default monster speed is `0.5 px/tick`.
 - Every action advances exactly one environment tick, including no-op, A/interact, and B/shield.
-- RL scripts can apply action repeat outside the base environment; this does not change environment physics.
+- `action_repeat` is now an environment config. Default remains `1`, so base physics are unchanged.
 
 ## Map and Screen Size
 
@@ -46,6 +57,16 @@ Human play maps arrow keys to held movement, `Z` to A/interact, and held `X` to 
 
 Single-task rooms can define `task_id`, `task_type`, `objective`, and task-level rewards. Completion emits `task_finished`, sets `info["finish"] == True`, and terminates the episode.
 
+## API Notes
+
+- `reset(seed=...) -> (obs, info)`
+- `step(action) -> (obs, reward, terminated, truncated, info)`
+- default `reward_mode="legacy"` strictly preserves the old reward behavior
+- optional reward modes: `event`, `sparse`
+- `info` includes both stable fields such as `episode_id`, `step_count`, `task_progress`, `reward_terms`, `event_counts`, and legacy fields such as `finish`, `task_success`, `health`, `gold`, `keys`, `room_id`, and `message`
+- native `action_repeat` must not be stacked with `rl.utils.wrappers.ActionRepeatWrapper`
+- validator migration is still observable in `info` via `legacy_done`, `validator_done`, and `validator_matches_legacy`
+
 ## How to Run
 
 ```bash
@@ -74,8 +95,18 @@ python rl/train.py --method ppo --task-rooms prototype --total-timesteps 50000 -
 python rl/train.py --method ppo --task-rooms avoid_traps kill_monsters key_door --episodes 2
 ```
 
+Benchmark v0 random evaluation:
+
+```bash
+python -m env_diy.benchmark.eval --suite NesyLink-v0 --policy random --episodes 2 --seed 0
+```
+
 ## Related Docs
 
 - [Env DIY Game Guide](../docs/env_diy_game_guide.md)
+- [Environment API](../docs/env_api.md)
+- [Reward Modes](../docs/reward.md)
+- [Tasks and Validators](../docs/tasks.md)
+- [Benchmark v0](../docs/benchmark.md)
 - [RL Smoke Training](../rl/README.md)
 - [Development Guide](../docs/DEVELOPMENT_GUIDE.md)

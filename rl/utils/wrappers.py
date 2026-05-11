@@ -11,6 +11,9 @@ class ActionRepeatWrapper(gym.Wrapper):
     def __init__(self, env: gym.Env, repeat: int = 4):
         if repeat < 1:
             raise ValueError("repeat must be >= 1")
+        native_repeat = int(getattr(env, "native_action_repeat", 1))
+        if native_repeat > 1 and repeat > 1:
+            raise ValueError("cannot combine env native action_repeat with ActionRepeatWrapper")
         super().__init__(env)
         self.repeat = int(repeat)
 

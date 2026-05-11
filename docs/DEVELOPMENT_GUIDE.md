@@ -621,7 +621,7 @@ README should explain:
 
 Lightweight RL smoke code should live under `rl/`.
 
-- Prefer direct `env_diy.envs.DungeonEnv` construction through a small env factory helper.
+- Prefer the public `env_diy.env.make_env(api="gym", ...)` facade; keep `env_diy.envs.DungeonEnv` only for Gym compatibility.
 - Keep smoke scripts dependency-light: standard library, numpy, and Gymnasium are enough for random rollout validation.
 - Do not require rendering by default; headless CI/test runs should work without opening a window.
 - Store reusable helpers in `rl/utils/` and episode-level smoke outputs under `rl/outputs/`.

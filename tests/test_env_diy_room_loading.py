@@ -28,6 +28,20 @@ class RoomManagerLoadingTests(unittest.TestCase):
         self.assertTrue(any(exit_config.exit_type == "locked_key" for exit_config in room.exits))
         self.assertTrue(any(exit_config.exit_type == "conditional" for exit_config in room.exits))
 
+    def test_training_dungeons_with_utf8_bom_load(self) -> None:
+        configs = [
+            PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "combat_training" / "dungeon.json",
+            PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "evasion_training" / "dungeon.json",
+            PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "chest_training" / "dungeon.json",
+        ]
+
+        for config in configs:
+            with self.subTest(config=config.name):
+                manager = RoomManager(config)
+                room = manager.get_room(manager.start_room)
+                self.assertEqual(room.width, GRID_WIDTH)
+                self.assertEqual(room.height, GRID_HEIGHT)
+
     def test_exit_tiles_match_fixed_two_tile_rules(self) -> None:
         self.assertEqual(exit_tiles_for_direction("north"), ((4, 0), (5, 0)))
         self.assertEqual(exit_tiles_for_direction("south"), ((4, 7), (5, 7)))

@@ -37,6 +37,10 @@ class CountingEnv(gym.Env):
         return obs, reward, terminated, truncated, {"step_calls": self.step_calls}
 
 
+class NativeRepeatCountingEnv(CountingEnv):
+    native_action_repeat = 4
+
+
 class ActionRepeatWrapperTests(unittest.TestCase):
     def test_repeats_same_action_and_accumulates_reward(self) -> None:
         env = ActionRepeatWrapper(CountingEnv(), repeat=4)
@@ -105,6 +109,10 @@ class ActionRepeatWrapperTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "repeat must be >= 1"):
             ActionRepeatWrapper(CountingEnv(), repeat=-1)
+
+    def test_conflict_with_native_action_repeat_raises_clear_error(self) -> None:
+        with self.assertRaisesRegex(ValueError, "cannot combine env native action_repeat"):
+            ActionRepeatWrapper(NativeRepeatCountingEnv(), repeat=4)
 
 
 if __name__ == "__main__":

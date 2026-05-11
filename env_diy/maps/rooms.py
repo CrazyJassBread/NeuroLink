@@ -593,7 +593,7 @@ class RoomManager:
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            return json.loads(path.read_text(encoding="utf-8-sig"))
         except json.JSONDecodeError as exc:
             raise MapValidationError(
                 path,

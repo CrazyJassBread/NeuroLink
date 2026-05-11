@@ -13,8 +13,7 @@ python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 
 
 The script:
 
-- creates `env_diy.envs.DungeonEnv` directly;
-- optionally wraps it with `ActionRepeatWrapper` for RL-only frame skip;
+- creates the public `env_diy.env.make_env(api="gym")` wrapper;
 - samples actions from `env.action_space`;
 - validates observations against `env.observation_space`;
 - records episode reward, length, termination flags, and game-over status;
@@ -36,20 +35,21 @@ python rl/train_random.py --episodes 2 --max-steps 20 --seed 0 --output rl/outpu
 
 The base `env_diy` environment moves the player at `1 px/tick`; default monster speed is `0.5 px/tick`. This keeps environment physics fine-grained, but random or early RL policies may explore too slowly if every agent decision advances only one pixel.
 
-Use `--action-repeat` in RL scripts to repeat the same action for multiple underlying environment ticks:
+Use `--action-repeat` in RL scripts to configure the env's native action repeat:
 
 ```bash
 python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 0
 ```
 
-`max_steps` is the outer agent step count. Actual environment ticks are approximately `max_steps * action_repeat`, unless `terminated` or `truncated` stops the repeat early. Rewards from inner ticks are summed and the final `info` includes `action_repeat`, `inner_steps`, and `repeated_reward`.
+`max_steps` is the outer agent step count. Actual environment ticks are approximately `max_steps * action_repeat`, unless `terminated` or `truncated` stops the repeat early. Rewards from inner ticks are summed and the final `info` includes `action_repeat`, `inner_steps`, `reward_terms`, `event_counts`, and legacy compatibility fields.
 
 Recommended starting point:
 
 - use `--action-repeat 4` for smoke training;
 - try `--action-repeat 8` or larger `--max-steps` if exploration is still too sparse;
 - prefer reward shaping, curriculum, and single-task maps for task-specific learning signals;
-- keep action repeat in RL wrappers/scripts, not in base environment movement speed.
+- do not combine env native `action_repeat` with `rl.utils.wrappers.ActionRepeatWrapper`; the wrapper now raises on double stacking;
+- keep default movement speed unchanged and scale exploration with action repeat first.
 
 Rendering is off by default so the script can run in headless test environments. To explicitly call `env.render()` every step:
 
@@ -94,6 +94,15 @@ python rl/train_single_task.py --config env_diy/map_data/dungeons/key_door/room_
 
 Episode logs include reward, length, `finish`, `terminated`, and `truncated`.
 JSONL output defaults to `rl/outputs/single_task_training.jsonl`.
+
+Canonical env behavior notes:
+
+- `make_env(api="gym")` is the recommended entrypoint.
+- canonical Gym wrapper defaults to `auto_reset_on_step=False`.
+- legacy `env_diy.envs.DungeonEnv` keeps auto-reset compatibility.
+- default `reward_mode` is `legacy`; `event` and `sparse` are optional modes.
+- `info["reward_terms"]` is always populated.
+- `info` also carries `legacy_done`, `validator_done`, and `validator_matches_legacy` while validator migration remains conservative.
 
 ## Unified Classic RL Entry
 

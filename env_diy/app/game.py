@@ -10,7 +10,7 @@ from ..core.constants import (
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
 )
-from ..envs import DungeonEnv
+from ..env import make_env
 from ..input import HumanInputState
 
 
@@ -22,7 +22,7 @@ class ZeldaLikeGame:
         self.display_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         self.clock = pygame.time.Clock()
 
-        self.env = DungeonEnv(room_file=room_file, render_mode="rgb_array", auto_reset_on_step=True)
+        self.env = make_env(room_file, api="gym", render_mode="rgb_array", auto_reset_on_step=True)
         self.env.reset()
         self.input_state = HumanInputState()
         self.running = True

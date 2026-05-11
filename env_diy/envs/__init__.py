@@ -1,3 +1,3 @@
-from .dungeon_env import DungeonEnv
+from .dungeon_env import DungeonEnv, GymDungeonEnv
 
-__all__ = ["DungeonEnv"]
+__all__ = ["DungeonEnv", "GymDungeonEnv"]

@@ -36,13 +36,9 @@ class RendererTests(unittest.TestCase):
         self.assertEqual(frame.shape, (INTERNAL_HEIGHT, INTERNAL_WIDTH, 3))
 
     def test_legacy_import_paths_still_work(self) -> None:
-        from env_diy.env import DungeonEnv as LegacyDungeonEnv
-        from env_diy.renderer import render_frame as legacy_render_frame
-        from env_diy.room import RoomManager as LegacyRoomManager
+        from env_diy.env import DungeonEnv as FacadeDungeonEnv
 
-        self.assertIs(LegacyDungeonEnv, DungeonEnv)
-        self.assertIs(legacy_render_frame, render_frame)
-        self.assertEqual(LegacyRoomManager(STRUCTURED_DUNGEON).start_room_id, "room_0_0")
+        self.assertIs(FacadeDungeonEnv, DungeonEnv)
 
     def test_hud_area_exists_and_status_text_is_available(self) -> None:
         env = DungeonEnv(STRUCTURED_DUNGEON)

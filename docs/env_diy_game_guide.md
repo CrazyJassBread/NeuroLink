@@ -192,7 +192,7 @@ Buttons and traps:
 
 ## 9. Reward Design
 
-Rewards are currently implemented directly in `DungeonEnv` methods, not centralized constants.
+Rewards are now centralized in `env_diy/rewards/reward_fn.py`.
 
 | Event | Reward | Notes |
 |---|---:|---|
@@ -239,7 +239,7 @@ Action semantics:
 - `no-op` does not move the player, but monsters still update.
 - Movement is pixel-level, not tile jumps. `DungeonEnv` defaults to `move_speed_px=1.0`, so a movement action advances the player by 1 pixel per environment tick.
 - Default monster speed is `0.5 px/tick`, derived from `player_speed * 0.5`.
-- RL training scripts can use action repeat, such as `--action-repeat 4`, to repeat one agent decision across multiple base environment ticks without changing environment physics.
+- The canonical Gym wrapper also supports `action_repeat` directly. Default remains `1`, so the base environment still advances one tick per `step()`.
 - A/interact and B/shield also allow monsters and contact checks to run.
 - The current `Discrete(7)` API cannot express simultaneous movement plus shield.
 - Human play maps held X to repeated B/shield with priority over held movement.

@@ -67,11 +67,12 @@ class EnvDIY(embodied.Env):
   ):
     del task
     from env_diy.core.constants import ACTION_NOOP
-    from env_diy.envs import DungeonEnv
+    from env_diy.env import make_env
 
     self._config_path = self._resolve_config_path(config_path)
-    self._env = DungeonEnv(
+    self._env = make_env(
         self._config_path,
+        api='gym',
         render_mode='rgb_array',
         auto_reset_on_step=False,
         move_speed_px=move_speed_px,
