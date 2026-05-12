@@ -6,4 +6,6 @@
 NesyLink: A Neuro-Symbolic, Compositional, Procedurally Generated 2D RL Benchmark for Long-Horizon Skill Composition and Generalization.
 
 ## 工作计划
-
+- [ ] 游戏环境基本可用，支持任务的自定义、RL 训练以及统一的输出格式
+- [ ] 设计一系列 easy、medium、hard 的任务，覆盖不同 skill 与 skill composition 的难度
+- [ ] 引入 Neuro-Symbolic 的元素，环境可以由符号规则来制定，

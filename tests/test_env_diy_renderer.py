@@ -14,10 +14,11 @@ from env_diy.core.constants import (
 )
 from env_diy.entities import ButtonState, ChestState, NPCState, PlayerState, TrapState
 from env_diy.entities.monsters import MonsterState
-from env_diy.envs import DungeonEnv
+from env_diy.env import DungeonEnv
 from env_diy.maps import ExitConfig, ExitRuntimeState, RoomState
 from env_diy.rendering import render_frame
 from env_diy.rendering.sprites import draw_exit
+from env_diy.wrappers import DungeonEnv as WrapperDungeonEnv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -35,10 +36,8 @@ class RendererTests(unittest.TestCase):
 
         self.assertEqual(frame.shape, (INTERNAL_HEIGHT, INTERNAL_WIDTH, 3))
 
-    def test_legacy_import_paths_still_work(self) -> None:
-        from env_diy.env import DungeonEnv as FacadeDungeonEnv
-
-        self.assertIs(FacadeDungeonEnv, DungeonEnv)
+    def test_facade_dungeon_env_still_matches_wrapper_class(self) -> None:
+        self.assertIs(DungeonEnv, WrapperDungeonEnv)
 
     def test_hud_area_exists_and_status_text_is_available(self) -> None:
         env = DungeonEnv(STRUCTURED_DUNGEON)

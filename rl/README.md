@@ -99,7 +99,8 @@ Canonical env behavior notes:
 
 - `make_env(api="gym")` is the recommended entrypoint.
 - canonical Gym wrapper defaults to `auto_reset_on_step=False`.
-- legacy `env_diy.envs.DungeonEnv` keeps auto-reset compatibility.
+- legacy `env_diy.env.DungeonEnv` keeps auto-reset compatibility.
+- `env_diy.envs.DungeonEnv` remains as a deprecated compatibility namespace only.
 - default `reward_mode` is `legacy`; `event` and `sparse` are optional modes.
 - `info["reward_terms"]` is always populated.
 - `info` also carries `legacy_done`, `validator_done`, and `validator_matches_legacy` while validator migration remains conservative.

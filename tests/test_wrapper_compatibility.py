@@ -4,8 +4,7 @@ import unittest
 from pathlib import Path
 
 from env_diy.core.constants import ACTION_NOOP
-from env_diy.env import make_env
-from env_diy.envs import DungeonEnv as LegacyDungeonEnv
+from env_diy.env import DungeonEnv as LegacyDungeonEnv, make_env
 from env_diy.wrappers import GymDungeonEnv
 
 

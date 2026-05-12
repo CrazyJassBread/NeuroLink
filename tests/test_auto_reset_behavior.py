@@ -5,8 +5,7 @@ from pathlib import Path
 
 from env_diy.core.constants import ACTION_NOOP, ACTION_RIGHT
 from env_diy.entities import tile_to_top_left_px
-from env_diy.env import make_env
-from env_diy.envs import DungeonEnv as LegacyDungeonEnv
+from env_diy.env import DungeonEnv as LegacyDungeonEnv, make_env
 from env_diy.wrappers import GymDungeonEnv
 
 

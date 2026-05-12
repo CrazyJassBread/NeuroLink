@@ -305,7 +305,7 @@ Example:
 
 ```python
 from pathlib import Path
-from env_diy.envs import DungeonEnv
+from env_diy.env import DungeonEnv
 
 env = DungeonEnv(Path("env_diy/map_data/dungeons/prototype/dungeon.json"))
 obs, info = env.reset(seed=0)
@@ -562,7 +562,7 @@ Environment creation:
 
 ```python
 from pathlib import Path
-from env_diy.envs import DungeonEnv
+from env_diy.env import DungeonEnv
 
 env = DungeonEnv(Path("env_diy/map_data/dungeons/prototype/dungeon.json"))
 ```
@@ -587,10 +587,9 @@ RL considerations:
 ### Create Environment
 
 ```python
-from pathlib import Path
-from env_diy.envs import DungeonEnv
+from env_diy.env import make_env
 
-env = DungeonEnv(Path("env_diy/map_data/dungeons/prototype/dungeon.json"))
+env = make_env("env_diy/map_data/dungeons/prototype/dungeon.json", api="gym")
 obs, info = env.reset(seed=0)
 frame = env.render()
 env.close()
@@ -599,10 +598,9 @@ env.close()
 ### Random Rollout
 
 ```python
-from pathlib import Path
-from env_diy.envs import DungeonEnv
+from env_diy.env import make_env
 
-env = DungeonEnv(Path("env_diy/map_data/dungeons/prototype/dungeon.json"))
+env = make_env("env_diy/map_data/dungeons/prototype/dungeon.json", api="gym")
 obs, info = env.reset(seed=0)
 
 for _ in range(100):

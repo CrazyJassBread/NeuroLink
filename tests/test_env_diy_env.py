@@ -24,7 +24,7 @@ from env_diy.core.constants import (
     TILE_SIZE,
 )
 from env_diy.entities import tile_from_position_px, tile_to_top_left_px
-from env_diy.envs import DungeonEnv
+from env_diy.env import DungeonEnv
 
 
 class DungeonEnvTests(unittest.TestCase):

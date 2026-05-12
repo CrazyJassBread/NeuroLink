@@ -10,7 +10,7 @@ from typing import Any
 
 from env_diy.core.constants import ACTION_A, ACTION_RIGHT, ACTION_UP, GRID_HEIGHT, GRID_WIDTH
 from env_diy.entities import tile_to_top_left_px
-from env_diy.envs import DungeonEnv
+from env_diy.env import DungeonEnv
 from env_diy.maps import MapValidationError, RoomManager
 from rl.train_single_task import resolve_single_task_config
 

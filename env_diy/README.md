@@ -13,7 +13,8 @@ env = make_env("env_diy/map_data/dungeons/prototype/dungeon.json", api="gym")
 ```
 
 `make_env(api="gym")` returns the canonical Gymnasium wrapper with `auto_reset_on_step=False`.
-`env_diy.envs.DungeonEnv` and `env_diy.DungeonEnv` remain available as compatibility aliases that keep legacy auto-reset behavior.
+`env_diy.env.DungeonEnv` remains available for legacy auto-reset behavior.
+`env_diy.envs.DungeonEnv` and `env_diy.DungeonEnv` are deprecated compatibility aliases and should not be used in new code.
 
 ## What This Environment Is
 

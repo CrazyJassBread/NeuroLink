@@ -3,8 +3,7 @@ from __future__ import annotations
 import unittest
 
 from env_diy.core.types import EngineStepResult, RuntimeSnapshot, StuckPenaltyConfig
-from env_diy.reward.compute import compute_reward as shim_compute_reward
-from env_diy.rewards.reward_fn import RewardConfig, compute_reward
+from env_diy.rewards import RewardConfig, compute_reward
 
 
 def _snapshot(
@@ -38,7 +37,7 @@ def _snapshot(
 
 
 class RewardFunctionTests(unittest.TestCase):
-    def test_legacy_reward_parity_for_key_events(self) -> None:
+    def test_legacy_reward_values_for_key_events(self) -> None:
         cases = [
             ("movement", EngineStepResult(events=["move_right"]), -0.01),
             ("empty_action", EngineStepResult(events=["action_a_empty"]), -0.01),
@@ -64,18 +63,15 @@ class RewardFunctionTests(unittest.TestCase):
 
         for label, result, expected in cases:
             with self.subTest(label=label):
-                shim_reward, shim_terms = shim_compute_reward(prev, next_state, result, None, stuck)
-                canonical_reward, canonical_terms = compute_reward(
+                reward, terms = compute_reward(
                     prev,
                     next_state,
                     result,
                     task_spec=None,
                     config=RewardConfig(reward_mode="legacy", stuck_penalty=stuck),
                 )
-                self.assertAlmostEqual(shim_reward, expected)
-                self.assertAlmostEqual(canonical_reward, expected)
-                self.assertEqual(shim_terms, canonical_terms)
-                self.assertAlmostEqual(canonical_reward, sum(canonical_terms.values()))
+                self.assertAlmostEqual(reward, expected)
+                self.assertAlmostEqual(reward, sum(terms.values()))
 
     def test_sparse_reward_only_rewards_goal(self) -> None:
         prev = _snapshot()

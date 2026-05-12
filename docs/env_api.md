@@ -15,14 +15,15 @@ env = make_env(
 )
 ```
 
-Compatibility entrypoints:
+Compatibility entrypoints kept during the current cleanup window:
 
 ```python
-from env_diy import DungeonEnv          # legacy auto-reset compatibility
-from env_diy.envs import DungeonEnv     # same compatibility class
+from env_diy import DungeonEnv          # deprecated legacy auto-reset compatibility
+from env_diy.env import DungeonEnv      # same legacy class without the root namespace shim
 ```
 
 `make_env(api="gym")` returns the canonical Gymnasium wrapper with `auto_reset_on_step=False`.
+`env_diy.envs.DungeonEnv` still forwards to the same legacy class, but it is a deprecated compatibility namespace and should not be used in new code.
 
 ## reset / step
 

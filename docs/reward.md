@@ -4,14 +4,12 @@
 
 There is exactly one real reward implementation:
 
-[`env_diy/rewards/reward_fn.py`](/Users/crazybread/Code/Link-s-awakening-RL/env_diy/rewards/reward_fn.py)
-
-Legacy path [`env_diy/reward/compute.py`](/Users/crazybread/Code/Link-s-awakening-RL/env_diy/reward/compute.py) is a shim that forwards to the canonical implementation.
+[`env_diy/rewards/reward_fn.py`](../env_diy/rewards/reward_fn.py)
 
 ## Entry Point
 
 ```python
-from env_diy.rewards.reward_fn import RewardConfig, compute_reward
+from env_diy.rewards import RewardConfig, compute_reward
 
 reward, reward_terms = compute_reward(
     prev_state,

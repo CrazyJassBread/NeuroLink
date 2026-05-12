@@ -1,34 +1,260 @@
-# DEVELOPMENT_GUIDE.md
+# NesyLink Development Guide
 
-# RL Dungeon Environment Development Guide
+## 1. Purpose
 
-## 1. Project Overview
+NesyLink is an original reinforcement learning environment project centered on
+`env_diy`, plus a benchmark layer built on top of it.
 
-This project is an original Python-based Reinforcement Learning environment compatible with Gymnasium.
+The project is developed as both:
 
-The environment is inspired by classic top-down 2D dungeon exploration mechanics from retro handheld-era games, but it must remain original.
+1. a configurable, testable, extensible Gymnasium environment; and
+2. a staged benchmark that becomes more reproducible over time.
 
-The project should NOT copy or reproduce:
+This guide is the single canonical development guide for the repository.
+
+## 2. Originality and Naming
+
+The project must remain original.
+
+Do not include:
 
 - copyrighted characters
 - copyrighted maps
 - copyrighted room layouts
 - copyrighted sprites
-- copyrighted audio/music
+- copyrighted audio or music
 - copyrighted item names
-- proprietary game logic from commercial games
+- proprietary commercial game logic copied verbatim
 
-The goal is to build a configurable, testable, extensible RL dungeon environment.
+Prefer generic or original names such as:
 
----
+- hero
+- slime
+- bat
+- chest
+- trap
+- dungeon
+- key
+- door
+- coin
+- potion
 
-## 2. Primary Development Goals
+## 3. Current Project Reality
 
-The project should prioritize:
+The repository already contains more than a raw environment prototype.
+It currently includes:
 
-### 2.1 Gymnasium compatibility
+- a canonical Gymnasium wrapper under `env_diy.env.make_env(...)`
+- deterministic reset and action sampling support
+- centralized reward logic with `legacy`, `event`, and `sparse` modes
+- runtime task validation for current single-task maps
+- a lightweight benchmark layer under `env_diy/benchmark/`
+- random-policy smoke scripts and PPO integration under `rl/`
 
-The environment must comply with Gymnasium API.
+When making decisions, optimize for the current repository reality first.
+Do not force the codebase to match an aspirational folder layout unless there
+is a clear implementation reason and an approved migration plan.
+
+## 4. Benchmark Maturity Model
+
+This project now uses staged benchmark goals instead of treating every
+long-term benchmark feature as an immediate minimum requirement.
+
+### 4.1 Current stage: benchmark v0 smoke suite
+
+This is the current baseline and should remain healthy at all times.
+
+Required properties:
+
+- Gymnasium API passes
+- random-policy smoke rollouts pass
+- seeded determinism tests pass
+- at least 3 official benchmark tasks exist
+- benchmark task metadata is registered
+- benchmark evaluation can run and write machine-readable output
+- action space and observation space are documented
+
+### 4.2 Next stage: benchmark v0.1 MVP
+
+This is the next practical benchmark milestone.
+
+Required additions:
+
+- benchmark metadata is exposed consistently in env info and evaluation output
+- evaluation writes a stable run artifact layout
+- benchmark version is included in benchmark outputs
+- README and benchmark docs clearly describe the benchmark entrypoints
+- benchmark metrics and output schema are documented
+
+### 4.3 Later stage: benchmark v0.2 reproducible suite
+
+This is a larger benchmark milestone, not the current minimum bar.
+
+Expected additions:
+
+- fixed train, validation, test, and OOD splits
+- split validation tests
+- scripted expert or oracle baseline where practical
+- PPO benchmark baseline result
+- richer benchmark metrics beyond smoke aggregates
+- reproducibility instructions for official reporting
+
+### 4.4 Long-term stage: benchmark v1.0
+
+This is the freeze point for official benchmark comparability.
+
+Expected additions:
+
+- frozen benchmark task suites
+- frozen seed splits
+- frozen scoring scripts
+- published baseline results
+- complete reproducibility instructions
+- stable benchmark release/version policy
+
+## 5. Canonical Repository Structure
+
+Work with the current repository structure unless a migration is explicitly
+approved.
+
+```text
+env_diy/
+  env.py              # public environment facade, including make_env(...)
+  wrappers/           # Gymnasium wrapper classes and API registry
+  envs/               # deprecated compatibility namespace for older imports
+  core/               # constants, runtime, collisions, observation/info helpers
+  entities/           # entity state and monster behavior
+  maps/               # room/map schema, parser, validation, RoomManager
+  rendering/          # frame renderer and procedural sprites
+  input/              # human-play input state helpers
+  app/                # pygame interactive runner
+  rewards/            # centralized reward logic
+  tasks/              # task spec and validator layer
+  benchmark/          # current benchmark registry, metrics, evaluation
+
+rl/
+  utils/              # smoke training helpers
+  baselines/          # classic RL integrations
+  outputs/            # local RL outputs
+
+docs/
+  DEVELOPMENT_GUIDE.md
+  benchmark.md
+  env_api.md
+  reward.md
+  tasks.md
+  worklog/
+```
+
+Prefer imports from:
+
+```python
+from env_diy.env import make_env
+```
+
+or from concrete subpackages such as:
+
+```python
+from env_diy.maps import ...
+from env_diy.tasks import ...
+from env_diy.rewards import ...
+```
+
+`env_diy.envs` is a compatibility namespace and should not be used by new code
+unless the work is specifically about backward compatibility.
+
+## 6. Required Workflow for Codex
+
+Before making changes, Codex must:
+
+- read this file
+- read `README.md`
+- inspect project structure
+- read relevant source files
+- read current tests
+- read configuration and map examples when relevant
+- read benchmark files if the change affects benchmark behavior
+- produce a plan
+- wait for human confirmation before editing
+
+Do not edit code or docs before presenting the plan and receiving approval.
+
+### 6.1 Plan format
+
+Use this structure:
+
+```markdown
+## Plan
+
+### Files to modify
+- ...
+
+### Why these changes are needed
+- ...
+
+### Expected behavior changes
+- ...
+
+### Benchmark impact
+- Does this change affect action semantics?
+- Does this change affect observation space?
+- Does this change affect reward values?
+- Does this change affect task success or failure conditions?
+- Does this change affect seed determinism?
+- Does this change affect official metrics?
+- Does this change require a benchmark version bump?
+
+### Compatibility impact
+- ...
+
+### Risks
+- ...
+
+### Test plan
+- ...
+
+### Evaluation plan
+- ...
+```
+
+## 7. Coding Standards
+
+Prefer:
+
+- readability over cleverness
+- explicitness over implicitness
+- simple abstractions
+- modular design
+- small incremental changes
+
+Avoid:
+
+- giant files
+- giant classes
+- giant functions
+- unnecessary metaprogramming
+- hidden side effects
+- behavior-changing refactors disguised as cleanup
+
+Use type hints whenever practical.
+
+Use clear names such as `player_health`, `current_room`, or `is_locked`.
+Short names are acceptable only for standard terms such as `obs`, `env`, or
+`rng`.
+
+Prefer structured dataclasses and enums for:
+
+- actions
+- entity types
+- item types
+- event types
+- reward modes
+- observation modes
+- benchmark splits
+
+## 8. Gymnasium API Policy
+
+The canonical environment must comply with Gymnasium.
 
 Required interface:
 
@@ -43,7 +269,6 @@ Required return values:
 
 ```python
 obs, info = reset()
-
 obs, reward, terminated, truncated, info = step(action)
 ```
 
@@ -53,461 +278,72 @@ Required properties:
 action_space
 observation_space
 ```
-### 2.2 RL-friendly design
 
-The environment should be easy for RL algorithms to use.
+For new code, the canonical entrypoint is:
 
-Requirements:
-
-- deterministic reset when seed is provided
-- stable observation format
-- stable action semantics
-- centralized reward logic
-- no hidden randomness without seeding
-
-### 2.3 Extensibility
-
-The system should allow future expansion for:
-
-- more monster types
-- more item types
-- new interaction mechanics
-- procedural generation
-- partial observability
-- multiple dungeons
-- curriculum learning
-
-## 3. Required Workflow for Codex
-
-Before making any changes:
-
-- Read this file.
-- Read README.md.
-- Inspect project structure.
-- Read relevant source files.
-- Read current tests.
-- Read configuration/map examples.
-- Produce a plan.
-- Wait for human confirmation.
-
-Do NOT edit code before presenting a plan.
-
-## 4. Plan Format
-
-The plan must include:
-```markdown
-## Plan
-
-### Files to modify
-- ...
-
-### Why these changes are needed
-- ...
-
-### Expected behavior changes
-- ...
-
-### Risks
-- ...
-
-### Test plan
-- ...
-```
-
-Only execute after approval.
-
-## 5. Coding Standards
-### 5.1 General Principles
-
-Prefer:
-
-- readability over cleverness
-- explicitness over implicitness
-- simple abstractions
-- modular design
-
-Avoid:
-
-- giant files
-- giant classes
-- giant functions
-- unnecessary metaprogramming
-- hidden side effects
-
-### 5.2 Naming
-
-Use clear names.
-
-Examples:
-
-Good:
 ```python
-player_health
-current_room
-is_locked
-```
-Bad:
-```python
-hp
-cr
-f
+from env_diy.env import make_env
+env = make_env(config_path, api="gym")
 ```
 
-### 5.3 Type Hints
+The canonical Gym wrapper should remain non-auto-reset by default.
+Legacy convenience wrappers may keep auto-reset behavior only for explicit
+compatibility.
 
-Use type hints whenever practical.
+## 9. Action and Tick Semantics
 
-Example:
-```python
-def move_player(action: int) -> None:
-    pass
-```
+Keep the discrete action API stable unless a behavior change is explicitly
+approved and versioned.
 
-### 5.4 Dataclasses / Enums
+| ID | Action |
+|---:|---|
+| 0 | no-op |
+| 1 | up |
+| 2 | down |
+| 3 | left |
+| 4 | right |
+| 5 | A / interact |
+| 6 | B / shield |
 
-Prefer structured types:
-```python
-@dataclass
-class Monster:
-    ...
-```
+Rules for `env_diy`:
 
-Use Enum for:
+- `env.step(action)` advances exactly one environment tick
+- no-op, A/interact, and B/shield still advance monster AI, timers, collision,
+  reward logic, and info generation
+- keep the environment action space as `Discrete(7)` unless a broader migration
+  is explicitly approved
+- A and B dispatch through player equipment state
+- default A is `interact`
+- default B is `shield`
+- equipment/tool state belongs in player state, `info`, and HUD
+- do not add equipment/tool state to observations without an explicit
+  observation-space migration
 
-- actions
-- entity types
-- item types
-- event types
+Human-play policy:
 
-## 6. Map / Dungeon Configuration Policy
-
-The project currently may use JSON, but JSON is not mandatory.
-
-Before changing the map system, evaluate alternatives.
-
-Possible options:
-
-- JSON
-- YAML
-- TOML
-- ASCII layout + metadata
-- Tiled Map Editor export
-- Python DSL
-- hybrid approaches
-
-Preferred criteria:
-
-- easy to edit
-- easy to validate
-- easy to diff in Git
-- easy to test
-- deterministic loading
-- minimal dependencies
-- scalable
-
-Do NOT migrate formats without first presenting:
-
-- rationale
-- example files
-- migration plan
-- parser design
-- validation strategy
-- test plan
-
-## 7. Recommended Map Format
-
-Preferred short-term approach:
-
-ASCII layout + metadata.
-
-Example:
-```json
-{
-  "room_id": "room_001",
-  "layout": [
-    "########",
-    "#P..C..#",
-    "#..T...#",
-    "#..B..E#",
-    "########"
-  ],
-  "legend": {
-    "#": "wall",
-    "P": "spawn",
-    "C": "chest",
-    "T": "trap",
-    "B": "button",
-    "E": "exit"
-  }
-}
-```
-Benefits:
-
-- human-readable
-- easy to debug
-- easy to diff
-
-Current `env_diy` geometry policy:
-
-- dungeon area width: 10 tiles
-- dungeon area height: 8 tiles
-- HUD height: 2 tiles
-- total render canvas: 10 x 10 tiles
-- tile size: 16 x 16 pixels
-- map pixel width: 160
-- map pixel height: 128
-- HUD pixel height: 32
-
-Current `env_diy` package structure:
-
-- `env_diy/envs/`: Gymnasium environment entry points and observation encoding.
-- `env_diy/core/`: constants and fixed geometry/action values.
-- `env_diy/entities/`: entity state, coordinate helpers, monster state, and monster AI updates.
-- `env_diy/maps/`: room/map schema, parser, validation, templates, and `RoomManager`.
-- `env_diy/rendering/`: frame renderer and procedural pixel sprites.
-- `env_diy/input/`: human-play input state helpers.
-- `env_diy/app/`: pygame interactive runner.
-- `env_diy/utils/`: small compatibility utilities.
-
-Prefer new code importing from these subpackages. Thin top-level compatibility modules such as `env_diy.env`, `env_diy.room`, and `env_diy.renderer` may remain temporarily for older tests or examples.
-
-## 8. Rendering Policy
-
-`env_diy` rendering must remain original and procedural. Do not copy or imitate commercial game sprites, maps, or UI assets.
-
-Current renderer expectations:
-
-- `render()` returns a `160 x 160 x 3` RGB array and must work in headless tests.
-- Drawing helpers should live outside `DungeonEnv`; environment logic should not own sprite/icon details.
-- Use lightweight primitives or small code-defined pixel icons instead of external image assets.
-- Keep player, monsters, chests, exits/doors, keys, coins/gold, heal items, traps, and buttons visually distinguishable inside a `16 x 16` tile.
-- Normal exits, locked-key doors, and conditional doors should remain visually distinct, and two-tile exits should read as one connected doorway.
-- HUD rendering should stay compact and show room id, HP, gold, collected items, and equipped A/B tools without reintroducing a red health bar.
-
-Recommended render smoke test:
-
-```bash
-source .venv/bin/activate
-python -m pytest -q tests/test_env_diy_renderer.py
-```
-
-Exit policy for `env_diy`:
-
-- exits are fixed two-tile regions centered on the room edge
-- north exit tiles: `(4, 0)` and `(5, 0)`
-- south exit tiles: `(4, 7)` and `(5, 7)`
-- west exit tiles: `(0, 3)` and `(0, 4)`
-- east exit tiles: `(9, 3)` and `(9, 4)`
-- room connectivity must still come from map config; only the exit shape/placement rule is centralized
-- directional target entries use the first non-wall candidate from:
-  - `north`: `(4, 1)`, `(5, 1)`
-  - `south`: `(4, 6)`, `(5, 6)`
-  - `west`: `(1, 3)`, `(1, 4)`
-  - `east`: `(8, 3)`, `(8, 4)`
-- supported directional aliases are `<direction>`, `from_<direction>`, and `<direction>_entry`
-- missing `target_entry` defaults to the opposite exit direction
-- if all directional entry candidates are walls, validation must fail instead of silently spawning elsewhere
-
-## 8. Input and Tick Semantics
-
-For `env_diy`, keep these rules stable unless a task explicitly changes them and also updates tests/docs:
-
-- `env.step(action)` always advances exactly one environment tick.
-- `0 = no-op`, `1 = up`, `2 = down`, `3 = left`, `4 = right`, `5 = A/interact`, `6 = B/shield`.
-- `no-op`, A/interact, and B/shield still advance monster AI, stun timers, collision checks, reward logic, and info generation.
-- Keep `DungeonEnv.step(action)` as a simple `Discrete(7)` action API unless a task explicitly approves a broader migration.
-- A and B dispatch through `PlayerState.equipped`: default A is `interact`, default B is `shield`.
-- Equipment/tool state belongs in player state, `info`, and HUD. Do not add it to observations without an explicit observation-space migration.
-- Human play may translate held keyboard state into per-frame actions, but that logic belongs in the interactive runner or input helper, not in the Gymnasium API itself.
-- In the pygame runner, held direction keys should repeat movement every frame.
-- If B is held in the pygame runner, it repeats `ACTION_B` and takes priority over movement; this is the v1 "stand and guard" policy because `Discrete(7)` cannot encode move+shield simultaneously.
-- If multiple direction keys are held and B is not held, the most recently pressed direction should win unless a different policy is intentionally documented and tested.
-- Default monster speed should remain `player_speed * 0.5` unless a specific monster overrides its own speed in config.
-
-## 9. Dynamic Entity Collision Policy
-
-Dynamic entities use pixel/world coordinates. Static map content remains tile-based.
-
-- Player and monsters use pixel-level positions and `16 x 16` AABBs by default.
-- Wall/bounds collision should resolve through explicit AABB-vs-tile checks.
-- Dynamic entities must remain inside the dungeon area only:
-  - `x in [0, 159]`
-  - `y in [0, 127]`
-- The HUD area (`y in [128, 159]`) is visual only and must never be entered by dynamic entities.
-- Tile-based triggers such as traps, buttons, and exits should continue to use the entity center tile derived from pixel position.
-
-Monster contact damage policy:
-
-- A valid monster overlap deals damage once and attempts to knock the monster away from the player.
-- If shield is active for that tick, contact damage is prevented and the monster still follows the same knockback/stun path.
-- Shield blocks should emit `shield_block` in `info["events"]` plus structured detail with monster id, prevented damage, knockback pixels, and stun ticks.
-- Shield must not kill monsters or grant attack reward unless a later task explicitly adds shield offense.
-- The preferred knockback distance is one full tile (`16px`), but the environment may fall back to shorter legal distances such as `12px`, `8px`, `4px`, or `0px`.
-- After a valid hit, the monster enters a tick-based stun window and must not move, chase, or apply contact damage while stunned.
-- Stun duration must be based on environment ticks, not wall-clock time.
-- The environment should expose these outcomes clearly in `info`, while keeping compatibility with existing string event lists.
-- The primary protection against repeated damage should come from monster knockback plus monster stun, not from a long player invincibility timer.
-- Knockback must still obey walls, map bounds, and the HUD boundary.
-
-Exit and door policy:
-
-- Distinguish `normal`, `locked_key`, and `conditional` exits in both config and render output.
-- `normal` exits have no requirements.
-- `locked_key` exits should use explicit requirement fields such as `key_count` and optional `consume_key`.
-- Locked-key doors should keep static config separate from runtime state. Runtime `unlocked/opened` state resets with the room cache.
-- A locked-key door consumes keys only when it first unlocks; later traversals while open must not consume keys again.
-- Rendering should use locked art until runtime `opened=True`, then show a distinct open/unlocked locked-door variant.
-- `conditional` exits should use explicit requirement fields such as `button_pressed` or `item`.
-- When requirements are not satisfied, the player must remain in the current room and `info` should expose a blocked reason such as `blocked_locked` or `missing_requirement`.
-
-Map configuration coordinates must only target the dungeon area.
-
-- valid columns: `0..9`
-- valid rows: `0..7`
-- rows `8..9` are reserved for HUD and are illegal in map config
-## 8. Environment Mechanics
-### 8.1 Player
-
-The player should have:
-
-- position
-- health
-- max health
-- inventory
-- gold
-- key count
-
-### 8.2 Movement
-
-Movement must respect:
-
-- walls
-- room bounds
-- locked doors
-- blocking entities
-
-For `env_diy`:
-
-- static map layout remains tile-based
-- dynamic entities use pixel/world positions
-- default player movement is measured in pixels per environment step
-- no-op still advances the environment tick
-- monsters must continue updating even when the player does not move
-
-Invalid moves should not crash.
-
-### 8.3 Monsters
-
-Monsters should support:
-
-- id
-- type
-- position
-- health
-- damage
-
-Optional future:
-
-- patrol
-- random walk
-- chase behavior
+- held direction keys repeat movement every frame
+- held B repeats shield and takes priority over movement
+- if multiple direction keys are held and B is not held, the most recently
+  pressed direction should win unless a different rule is documented and tested
 
 Default speed policy:
 
 - player speed unit: pixels per environment step
+- default player movement: `1 px/tick`
 - default monster speed: `player_speed * 0.5`
-### 8.4 Traps
 
-When stepped on:
+## 10. Observation Policy
 
-- deal damage
-- optional teleport to room entry
-- optional disappear after trigger
+Observation format must remain stable within a released benchmark version.
 
-Must produce event info.
+For `env_diy`:
 
-### 8.5 Chests
+- the observation covers only the `8 x 10` dungeon area
+- the HUD region must never be treated as walkable map space
+- pixel-level movement should be exposed explicitly where applicable
 
-Rules:
+Preferred current structured observation keys:
 
-- require interact action
-- may contain:
-- keys
-- items
-- healing
-- gold
-- can only open once unless repeatable
-### 8.6 Buttons / Switches
-
-Can trigger:
-
-- spawn item
-- unlock exit
-- open door
-- activate bridge
-- reveal key
-
-Can be one-time or repeatable.
-
-### 8.7 Keys / Doors
-
-Keys can:
-
-- unlock exits
-- unlock doors
-- trigger progression
-### 8.8 Room Transition
-
-Room transitions must be configuration-driven.
-
-- only configured exits may change rooms
-- exits should declare direction and target room; `target_entry` may be directional or a named spawn
-- directional entries should place the player just inside the target doorway, never on the edge exit tile
-- colliding with a map boundary from a non-exit tile must not change rooms
-- locked exits should report a clear blocked event when requirements are not met
-
-## 9. Action Space Policy
-
-Unless explicitly changed:
-
-ID	Action
-0	no-op
-1	up
-2	down
-3	left
-4	right
-5	button A (default equipped tool: interact)
-6	button B (default equipped tool: shield)
-
-Do not change without updating tests/docs.
-
-## 10. Observation Space Policy
-
-Observation format must remain stable.
-
-Possible formats:
-
-Grid format
-- Box(...)
-Dict format
-- Dict(...)
-
-Including:
-
-- player position
-- health
-- inventory
-- visible entities
-- room grid
-
-For `env_diy`, the observation should cover only the `8 x 10` dungeon area.
-The bottom HUD region must never be included as walkable map space.
-
-If dynamic entities use pixel-level movement, the observation should expose that explicitly.
-
-Preferred current format for `env_diy`:
-
-- `Dict`
 - `grid`
 - `player_position_px`
 - `player_tile`
@@ -518,45 +354,238 @@ Preferred current format for `env_diy`:
 - `monsters_position_px`
 - `monsters_tile`
 - `monsters_active_mask`
+- `monsters_hp`
 
-Must document clearly.
+Observation-space changes are benchmark-breaking unless versioned.
 
 ## 11. Reward Policy
 
-Reward logic should be centralized.
+Reward logic must be centralized.
 
-Possible components:
+The canonical implementation lives under `env_diy/rewards/`.
+
+Current supported reward modes:
+
+- `legacy`
+- `event`
+- `sparse`
+
+Do not document `dense` or `potential` as currently supported behavior unless
+they are actually implemented. Those remain future extensions.
+
+Reward policy requirements:
+
+- scalar reward should be computed in one reward module
+- reward calculation may depend on previous state, current state, events,
+  task specification, and termination status
+- `info["reward_terms"]` should expose the decomposition
+- the scalar reward should equal `sum(reward_terms.values())` unless an
+  exception is explicitly documented
+
+Possible reward components include:
 
 - step penalty
+- blocked movement penalty
 - damage penalty
 - trap penalty
 - item reward
+- key reward
+- door reward
+- task completion reward
+- death penalty
 
-## 12. Game Over Policy
+## 12. Info Schema Policy
+
+The environment should expose clear structured info for RL and debugging.
+
+Current stable info fields should include, when applicable:
+
+- `episode_id`
+- `step_count`
+- `map_id`
+- `seed`
+- `task_id`
+- `task_type`
+- `events`
+- `event_counts`
+- `event_records`
+- `task_progress`
+- `success`
+- `failure`
+- `terminated_reason`
+- `reward_terms`
+- `action_repeat`
+- `inner_steps`
+
+Compatibility fields may remain temporarily for legacy scripts, but new code
+should prefer the stable fields.
+
+For benchmark work, add metadata incrementally by maturity stage:
+
+- benchmark v0 smoke: `task_id`, `map_id`, `seed`
+- benchmark v0.1 MVP: add `benchmark_version`, `suite_id`, `difficulty`
+- benchmark v0.2 reproducible: add `split`, `map_seed`, `task_seed` where
+  relevant
+
+## 13. Game Over and Episode End Policy
 
 When player health reaches `0`:
 
 - the current `step()` must return `terminated=True`
 - the current `step()` must return `truncated=False`
 - `info` must contain a clear game-over flag such as `game_over=True`
-- the lethal step should return the terminal observation, not a hidden reset observation
+- the lethal step must return the terminal observation, not a hidden reset
+  observation
 
-If the caller invokes `step()` again before calling `reset()`:
+If the caller invokes `step()` again before `reset()`:
 
-- automatic reset is allowed
-- that behavior must be documented
+- canonical Gym wrappers should not silently reset
+- compatibility wrappers may preserve legacy auto-reset if documented
 - tests must verify the chosen behavior
-- chest reward
-- key reward
-- room completion reward
-- dungeon completion reward
-- death penalty
+- benchmark evaluation must not rely on hidden auto-reset behavior
 
-Avoid hardcoding across files.
+Episode truncation should be used for:
 
-## 12. Validation Policy
+- max episode steps
+- time limit
+- evaluation budget
 
-All configs must validate.
+Episode termination should be used for:
+
+- task success
+- player death
+- explicit failure conditions
+
+## 14. Map and Geometry Policy
+
+JSON is currently the active map format, but it is not the only possible future
+format.
+
+Before changing map format, present:
+
+- rationale
+- example files
+- migration plan
+- parser design
+- validation strategy
+- test plan
+- benchmark compatibility impact
+
+Current `env_diy` geometry policy:
+
+- dungeon width: 10 tiles
+- dungeon height: 8 tiles
+- HUD height: 2 tiles
+- total render canvas: 10 x 10 tiles
+- tile size: `16 x 16`
+- map pixel width: `160`
+- map pixel height: `128`
+- HUD pixel height: `32`
+- render frame shape: `160 x 160 x 3`
+
+Valid map coordinates:
+
+- columns: `0..9`
+- rows: `0..7`
+
+Rows `8..9` are HUD-only and illegal in map config.
+
+## 15. Room, Exit, and Door Policy
+
+Room transitions must be configuration-driven.
+
+General rules:
+
+- only configured exits may change rooms
+- colliding with a map boundary from a non-exit tile must not change rooms
+- locked exits should report a clear blocked event when requirements are not met
+
+Current fixed exit shape policy for `env_diy`:
+
+- north exit tiles: `(4, 0)` and `(5, 0)`
+- south exit tiles: `(4, 7)` and `(5, 7)`
+- west exit tiles: `(0, 3)` and `(0, 4)`
+- east exit tiles: `(9, 3)` and `(9, 4)`
+
+Directional target entry policy:
+
+- `north`: `(4, 1)`, `(5, 1)`
+- `south`: `(4, 6)`, `(5, 6)`
+- `west`: `(1, 3)`, `(1, 4)`
+- `east`: `(8, 3)`, `(8, 4)`
+
+Supported aliases:
+
+- `<direction>`
+- `from_<direction>`
+- `<direction>_entry`
+
+If all directional entry candidates are walls, validation must fail.
+
+Exit state policy:
+
+- distinguish `normal`, `locked_key`, and `conditional` exits in config and
+  render output
+- keep static config separate from runtime opened/unlocked state
+- consume keys only on the first unlock when configured to do so
+- later traversals through an open locked door must not consume keys again
+- expose blocked reasons such as `blocked_locked` or `missing_requirement`
+
+## 16. Dynamic Entity and Collision Policy
+
+Dynamic entities use pixel/world coordinates. Static map content remains
+tile-based.
+
+Rules:
+
+- player and monsters use `16 x 16` AABBs by default
+- wall and bounds collision should use explicit AABB-vs-tile checks
+- dynamic entities must remain inside the dungeon area only
+- valid dynamic `x` range is `[0, 159]`
+- valid dynamic `y` range is `[0, 127]`
+- the HUD area is visual only and must never be entered by dynamic entities
+- tile-triggered mechanics should use the center tile derived from pixel
+  position
+
+Monster contact damage policy:
+
+- a valid overlap deals damage once and attempts monster knockback
+- shield blocks prevent contact damage but still follow the same knockback/stun
+  path
+- shield blocks should emit `shield_block` plus structured details when
+  available
+- shield must not become an offensive kill mechanic unless explicitly added
+- stun duration must be tick-based, not wall-clock based
+- the primary protection against repeated contact damage should come from
+  knockback plus stun, not from a long invincibility timer
+
+## 17. Entity and Mechanic Policy
+
+Player state should support:
+
+- position
+- health
+- max health
+- inventory
+- gold
+- key count
+- equipped A tool
+- equipped B tool
+
+Mechanic expectations:
+
+- movement respects walls, bounds, locked doors, and blocking entities
+- invalid moves do not crash
+- monsters continue updating even if the player does not move
+- traps emit event info and may damage, teleport, or disappear
+- chests require interact, open once unless configured otherwise, and emit
+  reward-relevant events
+- buttons and switches may unlock exits, open doors, spawn items, or reveal
+  keys
+
+## 18. Validation Policy
+
+All configs should validate explicitly.
 
 Validation should catch:
 
@@ -565,49 +594,251 @@ Validation should catch:
 - duplicate IDs
 - impossible exits
 - malformed schema
+- illegal HUD coordinates
+- missing required fields
+- invalid task references
+- incompatible task and map definitions
 
-Raise explicit exceptions.
+Raise explicit exceptions instead of leaking generic parsing errors.
 
-Bad:
-```python
-KeyError
-```
-Good:
+Preferred examples:
+
 ```python
 InvalidDungeonConfigError
+InvalidTaskSpecError
+InvalidBenchmarkSplitError
+InvalidEvaluationConfigError
+UnsolvableGeneratedMapError
 ```
 
-## 13. Testing Requirements
+## 19. Task and Benchmark Policy
 
-Add tests for:
+A benchmark task is more than a map.
 
-Core Environment
- - creation
- - reset
- - step output
-Movement
- - bounds
+Treat it as the combination of:
+
+```text
+environment mechanics
++ map or map generator
++ task specification
++ reward mode
++ observation mode
++ action mode
++ seed
++ maximum episode length
++ evaluation metrics
+```
+
+Changing any of the following may break comparability and may require a version
+bump:
+
+- physics
+- action semantics
+- observation space
+- reward values
+- success or failure conditions
+- map layout
+- generator behavior
+- seed policy
+- maximum episode length
+- metrics or scoring
+
+### 19.1 Current official benchmark scope
+
+The current repository benchmark lives under `env_diy/benchmark/`.
+
+Its current role is:
+
+- a smoke benchmark registry
+- fixed named tasks
+- lightweight random-policy evaluation
+- machine-readable benchmark outputs
+
+It is not yet a fully frozen multi-split benchmark protocol.
+
+### 19.2 Task specification policy
+
+Task logic should be described separately from map geometry whenever practical.
+
+A task specification should eventually capture:
+
+- `task_id`
+- `suite_id`
+- `difficulty`
+- `max_episode_steps`
+- success conditions
+- failure conditions
+- subgoal definitions where applicable
+- reward-mode compatibility
+- metric requirements
+
+Current runtime validators may remain simpler than this model, but new work
+should move in this direction.
+
+### 19.3 Suite policy by phase
+
+Benchmark v0 smoke:
+
+- one or more suites are acceptable
+- a small set of stable named tasks is enough
+- tasks should be resettable, evaluable, and covered by tests
+
+Benchmark v0.2 reproducible and later:
+
+- fixed suite definitions
+- documented split policy
+- documented metric coverage
+- frozen official task lists for release reporting
+
+## 20. Seed and Split Policy
+
+Determinism is required now. Fixed benchmark splits are a later phase
+requirement.
+
+Current requirement:
+
+- seeded reset must be deterministic
+- same seed plus same action sequence must be reproducible
+- no hidden randomness without explicit seeding
+
+Later benchmark requirement:
+
+- fixed `train`, `validation`, `test`, and `ood_test` splits
+- split validation tests
+- no overlap between official splits
+
+Do not present split support as already implemented unless the repository
+actually contains it.
+
+## 21. Metrics and Evaluation Policy
+
+Evaluation requirements are also phased.
+
+### 21.1 Current benchmark v0 smoke metrics
+
+At minimum, benchmark evaluation should support:
+
+- `success_rate`
+- `failure_rate`
+- `truncation_rate`
+- `mean_return`
+- `mean_episode_length`
+- `mean_task_progress`
+
+### 21.2 Benchmark v0.1 MVP additions
+
+Add a stable run artifact layout such as:
+
+```text
+benchmark/outputs/<run_id>/
+  config.json or config.yaml
+  episodes.jsonl
+  summary.json
+```
+
+### 21.3 Benchmark v0.2 and later additions
+
+Later benchmark metrics may include:
+
+- `normalized_score`
+- split-specific scores
+- subgoal metrics
+- failure-stage metrics
+- exploration and safety metrics
+
+Do not require `normalized_score` until both random and expert baselines exist.
+
+## 22. Baseline Policy
+
+Differentiate between local training integrations and official benchmark
+baselines.
+
+Current repository reality:
+
+- random-policy smoke scripts under `rl/` are required and must stay healthy
+- PPO integration exists for training workflows
+- DreamerV3 integration exists for experimentation
+
+Official benchmark baseline requirements by phase:
+
+- benchmark v0 smoke: random-policy result path exists
+- benchmark v0.2 reproducible: random result plus at least one documented
+  benchmark baseline result
+- benchmark v1.0: official baseline set is frozen for reporting
+
+Do not call a training integration an official benchmark baseline unless its
+evaluation protocol and output are documented.
+
+## 23. RL Smoke Script Policy
+
+Lightweight RL smoke code should live under `rl/`.
+
+Rules:
+
+- prefer `env_diy.env.make_env(api="gym", ...)`
+- keep `env_diy.env.DungeonEnv` only for legacy auto-reset compatibility
+- treat `env_diy.envs.DungeonEnv` as deprecated
+- keep smoke scripts dependency-light
+- standard library, NumPy, and Gymnasium are enough for random rollout
+  validation
+- do not require rendering by default
+- keep reusable helpers in `rl/utils/`
+- keep smoke outputs under `rl/outputs/`
+- do not remove the random-policy smoke path
+
+## 24. Testing Requirements
+
+Maintain or add tests for:
+
+### 24.1 Core environment
+
+- environment creation
+- reset
+- step output
+- observation-space compatibility
+- action-space compatibility
+- render in headless mode
+- close
+
+### 24.2 Movement and transitions
+
+- bounds
 - walls
 - exits
-Traps
-- damage
-- teleport
-Chests
-- open logic
-- rewards
-Buttons
-- trigger effects
-Keys / Doors
-- unlock logic
-Config Loader
-- valid config
-- invalid config
-Determinism
-- seeded reset
+- invalid moves
+- room transitions
+- HUD boundary exclusion
 
-## 14. Documentation Requirements
+### 24.3 Entities and mechanics
 
-README should explain:
+- traps
+- chest open logic
+- button trigger effects
+- key and door logic
+- monster movement
+- monster contact damage
+- shield block
+- monster stun
+
+### 24.4 Determinism and reward
+
+- seeded reset determinism
+- sampled-action determinism where applicable
+- reward term correctness
+- scalar reward equals reward term sum
+
+### 24.5 Benchmark smoke
+
+- benchmark registry coverage
+- benchmark evaluation runs
+- benchmark output schema for the current stage
+
+Add stricter split, metrics, and solvability tests only when those benchmark
+features are actually implemented.
+
+## 25. Documentation Requirements
+
+`README.md` should explain:
 
 - install
 - run example
@@ -617,49 +848,98 @@ README should explain:
 - config format
 - tests
 
-## 14.1 RL Smoke Script Policy
+Current supporting docs should remain aligned with code:
 
-Lightweight RL smoke code should live under `rl/`.
+- `docs/env_api.md`
+- `docs/reward.md`
+- `docs/tasks.md`
+- `docs/benchmark.md`
+- `env_diy/README.md`
+- `rl/README.md`
 
-- Prefer the public `env_diy.env.make_env(api="gym", ...)` facade; keep `env_diy.envs.DungeonEnv` only for Gym compatibility.
-- Keep smoke scripts dependency-light: standard library, numpy, and Gymnasium are enough for random rollout validation.
-- Do not require rendering by default; headless CI/test runs should work without opening a window.
-- Store reusable helpers in `rl/utils/` and episode-level smoke outputs under `rl/outputs/`.
-- Random policy smoke scripts should validate reset/step returns, sampled actions, observation-space compatibility, multi-episode rollout, and output logging.
-- More complete algorithms can be added later as separate scripts, but should not remove the random-policy smoke path.
-## 15. File Structure Recommendation
+When benchmark maturity changes, update the docs in the same change.
 
-Example:
+## 26. Versioning and Compatibility Policy
 
-envdiy/
-│
-├── env/
-│   ├── dungeon_env.py
-│   ├── mechanics/
-│   ├── entities/
-│   ├── config/
-│
-├── maps/
-│
-├── tests/
-│
-├── README.md
-├── DEVELOPMENT_GUIDE.md
-## 16. Refactor Rules
+Use semantic versioning for benchmark-facing releases.
+
+Patch changes:
+
+- bug fixes
+- documentation fixes
+- test improvements
+- non-behavior-changing refactors
+
+Minor changes:
+
+- adding new optional tasks
+- adding optional metrics
+- adding optional observation modes
+- adding new baseline scripts without replacing official scoring
+
+Major changes:
+
+- action semantics
+- observation space
+- reward definitions
+- official task success or failure conditions
+- official seed split policy
+- map geometry
+- benchmark scoring
+- official evaluation protocol
+
+## 27. Refactor Rules
 
 Avoid massive rewrites.
 
-Prefer:
-
-small incremental changes.
+Prefer small incremental changes.
 
 Each change should:
 
-- preserve functionality
+- preserve functionality unless behavior change is intentional
 - keep tests passing
-## 17. Worklog Format
+- maintain Gymnasium compatibility
+- document benchmark impact when relevant
+- avoid unversioned changes to action, observation, reward, or task semantics
 
-After each session:
+## 28. Dependency Policy
+
+Do not add dependencies without justification.
+
+For each new dependency, explain:
+
+- why it is needed
+- alternatives considered
+- package size and complexity
+- effect on CI
+- effect on installation friction
+- whether it is required for core env, benchmark evaluation, rendering, or
+  optional baselines
+
+Core environment dependencies should remain minimal.
+
+## 29. Performance Considerations
+
+Prioritize correctness first.
+
+Avoid:
+
+- unnecessary deep copies
+- avoidable `O(N^2)` scans
+- excessive object recreation
+- expensive rendering inside headless training loops unless requested
+- excessive per-step logging in hot paths
+
+Benchmark evaluation should report enough metadata for reproducibility without
+making training loops unnecessarily slow.
+
+## 30. Worklog Format
+
+If the repository uses a worklog, update it after a session that changes code,
+docs, or benchmark policy.
+
+Use this format:
+
 ```markdown
 ## YYYY-MM-DD
 
@@ -672,6 +952,9 @@ After each session:
 ### Behavior Changes
 - ...
 
+### Benchmark Impact
+- ...
+
 ### Tests
 - Command:
 - Result:
@@ -680,41 +963,11 @@ After each session:
 - ...
 ```
 
-## 18. Dependency Policy
+## 31. Safety and Legal Requirements
 
-Do not add dependencies without justification.
+Keep all new assets, maps, tasks, and naming original.
 
-For each new dependency explain:
-
-- why needed
-- alternatives considered
-- package size / complexity
-
-## 19. Performance Considerations
-
-Prioritize correctness first.
-
-But avoid:
-
-- unnecessary deep copies
-- O(N²) scans if avoidable
-- excessive object recreation
-## 20. Safety / Legal
-
-The project must remain original.
-
-Do not include:
-
-- copyrighted names
-- copyrighted maps
-- copyrighted room layouts
-- copyrighted art/audio/assets
-
-Use generic names like:
-
-- hero
-- slime
-- bat
-- chest
-- trap
-- dungeon
+All sprites should be procedural, simple, and original.
+All maps should be original, generated, or manually designed without copying
+commercial layouts.
+All task names and entity names should be generic or original.

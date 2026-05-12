@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 
 from env_diy.core.constants import INTERNAL_HEIGHT, INTERNAL_WIDTH
-from env_diy.envs import DungeonEnv
+from env_diy.wrappers import DungeonEnv
 from rl.train_random import run_random_training
 from rl.utils import make_env, observation_is_valid
 

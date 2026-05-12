@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import importlib
 import unittest
+import warnings
 from pathlib import Path
 
-from env_diy import DungeonEnv as RootDungeonEnv
-from env_diy.envs import DungeonEnv as LegacyDungeonEnv
+from env_diy.env import DungeonEnv as LegacyDungeonEnv
 from env_diy.wrappers import GymDungeonEnv
 
 
@@ -50,8 +51,28 @@ class EnvDIYAPITests(unittest.TestCase):
         with self.assertRaises(ValueError):
             make_env(STRUCTURED_DUNGEON, api="unknown")
 
-    def test_root_and_legacy_dungeon_env_still_match(self) -> None:
-        self.assertIs(RootDungeonEnv, LegacyDungeonEnv)
+    def test_root_dungeon_env_is_deprecated_compat_export(self) -> None:
+        module = importlib.import_module("env_diy")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", DeprecationWarning)
+            root_env_cls = module.DungeonEnv
+        self.assertIs(root_env_cls, LegacyDungeonEnv)
+        self.assertTrue(any(item.category is DeprecationWarning for item in caught))
+
+    def test_envs_namespace_is_deprecated_compat_export(self) -> None:
+        module = importlib.import_module("env_diy.envs")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", DeprecationWarning)
+            legacy_env_cls = module.DungeonEnv
+        self.assertIs(legacy_env_cls, LegacyDungeonEnv)
+        self.assertTrue(any(item.category is DeprecationWarning for item in caught))
+
+    def test_envs_dungeon_env_module_warns_and_forwards(self) -> None:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", DeprecationWarning)
+            module = importlib.import_module("env_diy.envs.dungeon_env")
+        self.assertIs(module.DungeonEnv, LegacyDungeonEnv)
+        self.assertTrue(any(item.category is DeprecationWarning for item in caught))
 
 
 if __name__ == "__main__":

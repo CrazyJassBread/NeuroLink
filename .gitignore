@@ -19,3 +19,9 @@ setup.md
 .claude/
 
 .worktrees/
+
+origin_zelda/
+
+asserts/game_state/
+
+tests/
