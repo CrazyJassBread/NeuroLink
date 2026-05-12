@@ -171,7 +171,10 @@ def _evaluate_ppo(
                 obs, reward, terminated, truncated, info = eval_env.step(int(action))
                 total_reward += float(reward)
                 length = step_index + 1
-                game_over = game_over or bool(info.get("game_over", False))
+                task_info = info["task"]
+                game_over = game_over or (
+                    bool(task_info["failure"]) and task_info["terminated_reason"] == "agent_dead"
+                )
 
                 if render:
                     eval_env.render()

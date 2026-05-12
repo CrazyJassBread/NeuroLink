@@ -55,6 +55,6 @@ class TaskValidationResult:
     task_progress: float = 0.0
     terminated_reason: str | None = None
     subgoal_status: dict[str, Any] = field(default_factory=dict)
-    legacy_done: bool = False
+    engine_done: bool = False
     validator_done: bool = False
-    validator_matches_legacy: bool = True
+    validator_matches_engine: bool = True

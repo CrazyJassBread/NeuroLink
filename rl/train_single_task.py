@@ -103,8 +103,8 @@ def run_single_task_training(
             terminated = False
             truncated = False
             finish = False
-            task_id = str(info.get("task_id", ""))
-            task_type = str(info.get("task_type", task))
+            task_id = env.task_config.task_id if env.task_config is not None else ""
+            task_type = env.task_config.task_type if env.task_config is not None else task
             length = 0
 
             for step_index in range(max_steps):
@@ -117,9 +117,8 @@ def run_single_task_training(
                     )
                 total_reward += float(reward)
                 length = step_index + 1
-                finish = finish or bool(info.get("finish", False))
-                task_id = str(info.get("task_id", task_id))
-                task_type = str(info.get("task_type", task_type))
+                task_info = info.get("task", {})
+                finish = finish or bool(task_info.get("success", False))
 
                 if render:
                     env.render()

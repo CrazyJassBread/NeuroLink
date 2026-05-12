@@ -14,7 +14,7 @@ def __getattr__(name: str) -> Any:
         warnings.warn(
             "env_diy.DungeonEnv is deprecated and kept only for compatibility. "
             "Use env_diy.env.make_env(..., api='gym') for the canonical Gym API, "
-            "or env_diy.env.DungeonEnv if you explicitly need legacy auto-reset behavior.",
+            "or env_diy.env.DungeonEnv if you explicitly need compatibility auto-reset behavior.",
             DeprecationWarning,
             stacklevel=2,
         )

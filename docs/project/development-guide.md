@@ -46,7 +46,7 @@ It currently includes:
 
 - a canonical Gymnasium wrapper under `env_diy.env.make_env(...)`
 - deterministic reset and action sampling support
-- centralized reward logic with `legacy`, `event`, and `sparse` modes
+- centralized reward logic with `default`, `event`, and `sparse` modes
 - runtime task validation for current single-task maps
 - a lightweight benchmark layer under `env_diy/benchmark/`
 - random-policy smoke scripts and PPO integration under `rl/`
@@ -365,7 +365,7 @@ The canonical implementation lives under `env_diy/rewards/`.
 
 Current supported reward modes:
 
-- `legacy`
+- `default`
 - `event`
 - `sparse`
 
@@ -397,27 +397,34 @@ Possible reward components include:
 
 The environment should expose clear structured info for RL and debugging.
 
-Current stable info fields should include, when applicable:
+Current stable top-level info fields should include:
 
-- `episode_id`
-- `step_count`
-- `map_id`
-- `seed`
-- `task_id`
-- `task_type`
+- `episode`
+- `env`
+- `agent`
+- `inventory`
 - `events`
-- `event_counts`
-- `event_records`
-- `task_progress`
-- `success`
-- `failure`
-- `terminated_reason`
-- `reward_terms`
-- `action_repeat`
-- `inner_steps`
+- `task`
+- `reward`
+- `control`
+- `debug`
 
-Compatibility fields may remain temporarily for legacy scripts, but new code
-should prefer the stable fields.
+Current stable nested fields should include, when applicable:
+
+- `episode.id`
+- `episode.step_count`
+- `episode.seed`
+- `env.map_id`
+- `env.room_id`
+- `events.records`
+- `events.counts`
+- `task.progress`
+- `task.success`
+- `task.failure`
+- `task.terminated_reason`
+- `reward.terms`
+- `control.action_repeat`
+- `control.inner_steps`
 
 For benchmark work, add metadata incrementally by maturity stage:
 
@@ -432,14 +439,15 @@ When player health reaches `0`:
 
 - the current `step()` must return `terminated=True`
 - the current `step()` must return `truncated=False`
-- `info` must contain a clear game-over flag such as `game_over=True`
+- `info["task"]["failure"]` must become `True`
+- `info["task"]["terminated_reason"]` should identify the terminal cause
 - the lethal step must return the terminal observation, not a hidden reset
   observation
 
 If the caller invokes `step()` again before `reset()`:
 
 - canonical Gym wrappers should not silently reset
-- compatibility wrappers may preserve legacy auto-reset if documented
+- compatibility wrappers may preserve compatibility auto-reset if documented
 - tests must verify the chosen behavior
 - benchmark evaluation must not rely on hidden auto-reset behavior
 
@@ -775,7 +783,7 @@ Lightweight RL smoke code should live under `rl/`.
 Rules:
 
 - prefer `env_diy.env.make_env(api="gym", ...)`
-- keep `env_diy.env.DungeonEnv` only for legacy auto-reset compatibility
+- keep `env_diy.env.DungeonEnv` only for compatibility auto-reset behavior
 - treat `env_diy.envs.DungeonEnv` as deprecated
 - keep smoke scripts dependency-light
 - standard library, NumPy, and Gymnasium are enough for random rollout

@@ -37,9 +37,10 @@ def main() -> int:
                 if math.isnan(float(reward)):
                     raise RuntimeError("reward is NaN")
                 total_reward += float(reward)
-                success = bool(info.get("success", False))
-                failure = bool(info.get("failure", False))
-                terminated_reason = info.get("terminated_reason")
+                task_info = info["task"]
+                success = bool(task_info.get("success", False))
+                failure = bool(task_info.get("failure", False))
+                terminated_reason = task_info.get("terminated_reason")
                 if terminated or truncated:
                     break
             print(

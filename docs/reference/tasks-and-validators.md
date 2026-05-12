@@ -1,7 +1,7 @@
 # env_diy Tasks
 
-This file documents task metadata, runtime validator behavior, and task
-extension points. Keep exact validator/output details here.
+This file documents task metadata, validator behavior, and task extension
+points.
 
 ## Canonical Task Modules
 
@@ -9,7 +9,8 @@ extension points. Keep exact validator/output details here.
 - `env_diy/tasks/validators.py`
 - `env_diy/tasks/registry.py`
 
-The map parser still loads task metadata from room JSON through `env_diy/maps/tasks.py`. The `tasks/` package is the runtime validation layer.
+Room JSON task metadata is parsed through `env_diy/maps/tasks.py`. The
+`tasks/` package is the runtime validation layer.
 
 ## Current Single Tasks
 
@@ -17,7 +18,8 @@ The map parser still loads task metadata from room JSON through `env_diy/maps/ta
 - `kill_monsters`
 - `key_door`
 
-`collect_coin` is registered as an extension point, but there is no built-in single-task map for it in the current repo.
+`collect_coin` is reserved as an extension point, but there is no built-in map
+for it in the current repo.
 
 ## Validator Output
 
@@ -28,12 +30,22 @@ Each validator returns:
 - `task_progress`
 - `terminated_reason`
 - `subgoal_status`
-- `legacy_done`
+- `engine_done`
 - `validator_done`
-- `validator_matches_legacy`
+- `validator_matches_engine`
 
-The wrapper keeps both legacy and validator termination signals so migration can be checked safely.
-At the moment, these comparison fields intentionally remain in `info` even though the canonical Gym wrapper can already use validator termination when parity holds.
+The wrapper exposes validator state through:
+
+- `info["task"]["success"]`
+- `info["task"]["failure"]`
+- `info["task"]["progress"]`
+- `info["task"]["terminated_reason"]`
+- `info["task"]["subgoals"]`
+- `info["debug"]["engine_done"]`
+- `info["debug"]["validator_done"]`
+- `info["debug"]["validator_matches_engine"]`
+
+There is no `info["legacy"]` namespace anymore.
 
 ## Minimal Example
 
@@ -45,9 +57,9 @@ task_spec = TaskSpec.from_task_config(env.task_config)
 result = validate_task(
     task_spec,
     env.engine.runtime,
-    info["events"],
-    info["event_details"],
-    legacy_done=terminated,
+    [record["name"] for record in info["events"]["records"]],
+    info["events"]["details"],
+    engine_done=terminated,
 )
 ```
 
@@ -60,9 +72,9 @@ result = validate_task(
 
 ## Adding a Composite Task
 
-Composite tasks should follow the same path:
+Composite tasks follow the same path:
 
 1. represent the task in map metadata
 2. expose a stable objective description via `TaskSpec`
 3. compute progress and terminal reasons in a validator
-4. keep legacy parity checks until the validator is trusted for termination
+4. return the resulting state through the nested `task` and `debug` info fields

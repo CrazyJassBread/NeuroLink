@@ -13,11 +13,11 @@ python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 
 
 The script:
 
-- creates the public `env_diy.env.make_env(api="gym")` wrapper;
-- samples actions from `env.action_space`;
-- validates observations against `env.observation_space`;
-- records episode reward, length, termination flags, and game-over status;
-- writes JSONL summaries to `rl/outputs/random_training.jsonl` by default.
+- creates the public `env_diy.env.make_env(api="gym")` wrapper
+- samples actions from `env.action_space`
+- validates observations against `env.observation_space`
+- records episode reward, length, termination flags, and whether the agent died
+- writes JSONL summaries to `rl/outputs/random_training.jsonl` by default
 
 Use a custom dungeon config:
 
@@ -41,7 +41,7 @@ Use `--action-repeat` in RL scripts to configure the env's native action repeat:
 python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 0
 ```
 
-`max_steps` is the outer agent step count. Actual environment ticks are approximately `max_steps * action_repeat`, unless `terminated` or `truncated` stops the repeat early. Rewards from inner ticks are summed and the final `info` includes `action_repeat`, `inner_steps`, `reward_terms`, `event_counts`, and legacy compatibility fields.
+`max_steps` is the outer agent step count. Actual environment ticks are approximately `max_steps * action_repeat`, unless `terminated` or `truncated` stops the repeat early. Rewards from inner ticks are summed and the final `info` includes `control.action_repeat`, `control.inner_steps`, `reward.terms`, and `events.counts`.
 
 Recommended starting point:
 
@@ -99,11 +99,12 @@ Canonical env behavior notes:
 
 - `make_env(api="gym")` is the recommended entrypoint.
 - canonical Gym wrapper defaults to `auto_reset_on_step=False`.
-- legacy `env_diy.env.DungeonEnv` keeps auto-reset compatibility.
+- compatibility `env_diy.env.DungeonEnv` keeps auto-reset behavior.
 - `env_diy.envs.DungeonEnv` remains as a deprecated compatibility namespace only.
-- default `reward_mode` is `legacy`; `event` and `sparse` are optional modes.
-- `info["reward_terms"]` is always populated.
-- `info` also carries `legacy_done`, `validator_done`, and `validator_matches_legacy` while validator migration remains conservative.
+- default `reward_mode` is `default`; `event` and `sparse` are optional modes.
+- `info["reward"]["terms"]` is always populated and `info["reward"]["total"]` matches the scalar reward.
+- validator/task status lives under `info["task"]` and `info["debug"]`.
+- `info` now only uses the clean nested schema; there is no `info["legacy"]` namespace.
 
 ## Unified Classic RL Entry
 

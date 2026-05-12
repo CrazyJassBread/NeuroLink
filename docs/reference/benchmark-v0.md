@@ -81,6 +81,6 @@ Suite aggregate metrics:
 
 ## Reward Modes
 
-- default benchmark reward mode is `legacy`
+- default benchmark reward mode is `default`
 - `event` and `sparse` are optional evaluation modes
 - benchmark v0 does not change the environment default reward behavior

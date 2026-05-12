@@ -7,11 +7,74 @@ from ..core.events import event_records_to_counts, normalize_event_records
 from ..core.types import RewardTerms, RuntimeSnapshot, StuckPenaltyConfig
 from ..maps.tasks import TaskConfig
 
+DEFAULT_REWARD_MODE = "default"
+SUPPORTED_REWARD_MODES = (DEFAULT_REWARD_MODE, "event", "sparse")
+
+
+@dataclass(frozen=True)
+class RewardRule:
+    term: str
+    events: tuple[str, ...]
+    default_value: float
+    task_field: str | None = None
+    repeat_by_count: bool = False
+
+
+DEFAULT_MODE_REWARD_RULES: tuple[RewardRule, ...] = (
+    RewardRule("movement", ("move_up", "move_down", "move_left", "move_right"), -0.01, task_field="step"),
+    RewardRule("blocked_movement", ("blocked_wall", "blocked_bounds"), -0.02),
+    RewardRule("blocked_exit", ("blocked_locked", "missing_requirement"), -0.02),
+    RewardRule("empty_action", ("action_a_empty", "action_b_empty"), -0.01),
+    RewardRule("room_transition", ("room_transition",), 0.1),
+    RewardRule("button_press", ("pressed_button",), 0.1),
+    RewardRule("trap_damage", ("trap_damage",), -0.5, task_field="damage"),
+    RewardRule("monster_hit", ("monster_hit",), -0.4, task_field="damage"),
+    RewardRule("monster_kill", ("monster_killed",), 0.3, task_field="monster_kill"),
+    RewardRule("got_key", ("got_key",), 0.4, task_field="key"),
+    RewardRule("got_gold", ("got_gold",), 0.2),
+    RewardRule("got_item", ("got_item",), 0.3),
+    RewardRule("task_finished", ("task_finished",), 10.0, task_field="finish"),
+)
+
+EVENT_MODE_REWARD_RULES: tuple[RewardRule, ...] = (
+    RewardRule("step_penalty", ("move_up", "move_down", "move_left", "move_right"), -0.01, task_field="step"),
+    RewardRule("picked_key", ("got_key",), 0.4, task_field="key", repeat_by_count=True),
+    RewardRule("opened_door", ("door_unlocked",), 0.2, task_field="door_unlock", repeat_by_count=True),
+    RewardRule("picked_coin", ("got_gold",), 0.2, repeat_by_count=True),
+    RewardRule("killed_monster", ("monster_killed",), 0.3, task_field="monster_kill", repeat_by_count=True),
+    RewardRule("hit_trap", ("trap_damage",), -1.0, task_field="damage", repeat_by_count=True),
+)
+
+STUCK_PROGRESS_EVENTS = {
+    "door_unlocked",
+    "got_gold",
+    "got_item",
+    "got_key",
+    "healed",
+    "monster_killed",
+    "opened_chest",
+    "pressed_button",
+    "room_transition",
+    "task_finished",
+    "talked_npc",
+    "victory",
+}
+
 
 @dataclass(frozen=True)
 class RewardConfig:
-    reward_mode: str = "legacy"
+    reward_mode: str = DEFAULT_REWARD_MODE
     stuck_penalty: StuckPenaltyConfig = StuckPenaltyConfig(enabled=False, steps=30, reward=-0.01)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "reward_mode", normalize_reward_mode(self.reward_mode))
+
+
+def normalize_reward_mode(reward_mode: str) -> str:
+    normalized = str(reward_mode)
+    if normalized not in SUPPORTED_REWARD_MODES:
+        raise ValueError(f"unsupported reward_mode '{reward_mode}'")
+    return normalized
 
 
 def compute_reward(
@@ -24,16 +87,16 @@ def compute_reward(
     reward_config = config or RewardConfig()
     normalized = _normalize_events(events)
     reward_mode = reward_config.reward_mode
-    if reward_mode == "legacy":
-        return _compute_legacy_reward(prev_state, state, normalized, task_spec, reward_config.stuck_penalty)
+    if reward_mode == DEFAULT_REWARD_MODE:
+        return _compute_default_reward(prev_state, state, normalized, task_spec, reward_config.stuck_penalty)
     if reward_mode == "event":
-        return _compute_event_reward(prev_state, state, normalized, task_spec)
+        return _compute_event_reward(state, normalized, task_spec)
     if reward_mode == "sparse":
         return _compute_sparse_reward(normalized, task_spec)
     raise ValueError(f"unsupported reward_mode '{reward_mode}'")
 
 
-def _compute_legacy_reward(
+def _compute_default_reward(
     prev_state: RuntimeSnapshot,
     next_state: RuntimeSnapshot,
     normalized: dict[str, Any],
@@ -41,104 +104,42 @@ def _compute_legacy_reward(
     stuck_config: StuckPenaltyConfig,
 ) -> tuple[float, RewardTerms]:
     reward = 0.0
-    breakdown: RewardTerms = {}
-    events = normalized["events"]
+    terms: RewardTerms = {}
     event_details = normalized["event_details"]
 
-    def add(label: str, value: float) -> None:
-        nonlocal reward
-        reward += value
-        breakdown[label] = breakdown.get(label, 0.0) + value
+    reward = _apply_reward_rules(reward, terms, DEFAULT_MODE_REWARD_RULES, normalized["event_counts"], task_config)
 
-    if any(event.startswith("move_") for event in events):
-        add("movement", _task_reward(task_config, "step", -0.01))
-    if "blocked_wall" in events or "blocked_bounds" in events:
-        add("blocked_movement", -0.02)
-    if "blocked_locked" in events or "missing_requirement" in events:
-        add("blocked_exit", -0.02)
-    if "action_a_empty" in events or "action_b_empty" in events:
-        add("empty_action", -0.01)
-    if "room_transition" in events:
-        add("room_transition", 0.1)
-    if "pressed_button" in events:
-        add("button_press", 0.1)
-    if "trap_damage" in events:
-        add("trap_damage", _task_reward(task_config, "damage", -0.5))
-    if "monster_hit" in events:
-        add("monster_hit", _task_reward(task_config, "damage", -0.4))
-    if "monster_killed" in events:
-        add("monster_kill", _task_reward(task_config, "monster_kill", 0.3))
-    if "got_key" in events:
-        add("got_key", _task_reward(task_config, "key", 0.4))
-    if "door_unlocked" in events and any(
-        detail.get("type") == "door_unlocked" and detail.get("trigger") != "all_monsters_defeated"
-        for detail in event_details
-    ):
-        add("door_unlock", _task_reward(task_config, "door_unlock", 0.0))
-    if "got_gold" in events:
-        add("got_gold", 0.2)
-    if "got_item" in events:
-        add("got_item", 0.3)
-    if "healed" in events:
+    if _door_unlock_reward_applies(event_details):
+        reward = _add_reward_term(reward, terms, "door_unlock", _task_reward(task_config, "door_unlock", 0.0))
+
+    if "healed" in normalized["event_counts"]:
         healed_amount = max(0, next_state.health - prev_state.health)
-        add("healed", 0.2 if healed_amount > 0 else 0.05)
-    if "task_finished" in events:
-        add("task_finished", _task_reward(task_config, "finish", 10.0))
+        heal_reward = 0.2 if healed_amount > 0 else 0.05
+        reward = _add_reward_term(reward, terms, "healed", heal_reward)
+
     if normalized["grant_victory_reward"]:
-        add("victory", 1.0)
-    if stuck_config.enabled and next_state.no_progress_steps >= stuck_config.steps:
-        progress_events = {
-            "door_unlocked",
-            "got_gold",
-            "got_item",
-            "got_key",
-            "healed",
-            "monster_killed",
-            "opened_chest",
-            "pressed_button",
-            "room_transition",
-            "task_finished",
-            "talked_npc",
-            "victory",
-        }
-        if prev_state.player_position_px == next_state.player_position_px and prev_state.room_id == next_state.room_id:
-            if not any(event in progress_events for event in events):
-                add("stuck_penalty", stuck_config.reward)
-    return reward, breakdown
+        reward = _add_reward_term(reward, terms, "victory", 1.0)
+
+    if _stuck_penalty_applies(prev_state, next_state, normalized["events"], stuck_config):
+        reward = _add_reward_term(reward, terms, "stuck_penalty", stuck_config.reward)
+
+    return reward, terms
 
 
 def _compute_event_reward(
-    prev_state: RuntimeSnapshot,
     next_state: RuntimeSnapshot,
     normalized: dict[str, Any],
     task_config: TaskConfig | None,
 ) -> tuple[float, RewardTerms]:
-    del prev_state
     reward = 0.0
     terms: RewardTerms = {}
-    counts = normalized["event_counts"]
+    reward = _apply_reward_rules(reward, terms, EVENT_MODE_REWARD_RULES, normalized["event_counts"], task_config)
 
-    def add(name: str, value: float) -> None:
-        nonlocal reward
-        reward += value
-        terms[name] = terms.get(name, 0.0) + value
+    if normalized["event_counts"].get("game_over", 0) or next_state.health <= 0:
+        reward = _add_reward_term(reward, terms, "agent_dead", -1.0)
+    if normalized["event_counts"].get("task_finished", 0) or normalized["event_counts"].get("victory", 0):
+        reward = _add_reward_term(reward, terms, "reached_goal", _task_reward(task_config, "finish", 10.0))
 
-    if counts.get("move_up", 0) or counts.get("move_down", 0) or counts.get("move_left", 0) or counts.get("move_right", 0):
-        add("step_penalty", _task_reward(task_config, "step", -0.01))
-    if counts.get("got_key", 0):
-        add("picked_key", counts["got_key"] * _task_reward(task_config, "key", 0.4))
-    if counts.get("door_unlocked", 0):
-        add("opened_door", counts["door_unlocked"] * _task_reward(task_config, "door_unlock", 0.2))
-    if counts.get("got_gold", 0):
-        add("picked_coin", counts["got_gold"] * 0.2)
-    if counts.get("monster_killed", 0):
-        add("killed_monster", counts["monster_killed"] * _task_reward(task_config, "monster_kill", 0.3))
-    if counts.get("trap_damage", 0):
-        add("hit_trap", counts["trap_damage"] * _task_reward(task_config, "damage", -1.0))
-    if counts.get("game_over", 0) or next_state.health <= 0:
-        add("agent_dead", -1.0)
-    if counts.get("task_finished", 0) or counts.get("victory", 0):
-        add("reached_goal", _task_reward(task_config, "finish", 10.0))
     return reward, terms
 
 
@@ -152,6 +153,57 @@ def _compute_sparse_reward(
         reward = _task_reward(task_config, "finish", 10.0)
         terms["reached_goal"] = reward
     return reward, terms
+
+
+def _apply_reward_rules(
+    reward: float,
+    terms: RewardTerms,
+    rules: tuple[RewardRule, ...],
+    event_counts: dict[str, int],
+    task_config: TaskConfig | None,
+) -> float:
+    for rule in rules:
+        event_count = sum(int(event_counts.get(event_name, 0)) for event_name in rule.events)
+        if event_count <= 0:
+            continue
+        multiplier = event_count if rule.repeat_by_count else 1
+        value = _rule_value(rule, task_config) * multiplier
+        reward = _add_reward_term(reward, terms, rule.term, value)
+    return reward
+
+
+def _rule_value(rule: RewardRule, task_config: TaskConfig | None) -> float:
+    if rule.task_field is None:
+        return float(rule.default_value)
+    return _task_reward(task_config, rule.task_field, rule.default_value)
+
+
+def _door_unlock_reward_applies(event_details: list[dict[str, Any]]) -> bool:
+    return any(
+        detail.get("type") == "door_unlocked" and detail.get("trigger") != "all_monsters_defeated"
+        for detail in event_details
+    )
+
+
+def _stuck_penalty_applies(
+    prev_state: RuntimeSnapshot,
+    next_state: RuntimeSnapshot,
+    events: list[str],
+    stuck_config: StuckPenaltyConfig,
+) -> bool:
+    if not stuck_config.enabled or next_state.no_progress_steps < stuck_config.steps:
+        return False
+    if prev_state.player_position_px != next_state.player_position_px:
+        return False
+    if prev_state.room_id != next_state.room_id:
+        return False
+    return not any(event_name in STUCK_PROGRESS_EVENTS for event_name in events)
+
+
+def _add_reward_term(reward: float, terms: RewardTerms, term: str, value: float) -> float:
+    reward += value
+    terms[term] = terms.get(term, 0.0) + float(value)
+    return reward
 
 
 def _normalize_events(events: Any) -> dict[str, Any]:

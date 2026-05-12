@@ -1,3 +1,15 @@
-from .reward_fn import RewardConfig, compute_reward
+from .reward_fn import (
+    DEFAULT_REWARD_MODE,
+    SUPPORTED_REWARD_MODES,
+    RewardConfig,
+    compute_reward,
+    normalize_reward_mode,
+)
 
-__all__ = ["RewardConfig", "compute_reward"]
+__all__ = [
+    "DEFAULT_REWARD_MODE",
+    "SUPPORTED_REWARD_MODES",
+    "RewardConfig",
+    "compute_reward",
+    "normalize_reward_mode",
+]

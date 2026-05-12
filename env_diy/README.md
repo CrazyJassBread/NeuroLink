@@ -22,7 +22,7 @@ env = make_env("env_diy/map_data/dungeons/prototype/dungeon.json", api="gym")
 
 Compatibility notes:
 
-- `env_diy.env.DungeonEnv` remains available for legacy auto-reset behavior
+- `env_diy.env.DungeonEnv` remains available for compatibility auto-reset behavior
 - `env_diy.envs.DungeonEnv` and `env_diy.DungeonEnv` are deprecated
   compatibility aliases
 

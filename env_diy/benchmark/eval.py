@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ..rewards import normalize_reward_mode
 from .metrics import summarize_suite_metrics, summarize_task_metrics
 from .registry import get_task_spec, list_tasks, make_benchmark_env
 
@@ -20,6 +21,7 @@ def evaluate_suite(
 ) -> dict[str, Any]:
     if policy != "random":
         raise ValueError("only random policy is supported in benchmark v0")
+    resolved_reward_mode = None if reward_mode is None else normalize_reward_mode(reward_mode)
 
     task_payloads: list[dict[str, Any]] = []
     for offset, task in enumerate(list_tasks(suite_id)):
@@ -28,7 +30,7 @@ def evaluate_suite(
             suite_id,
             task.task_id,
             seed=task_seed,
-            reward_mode=reward_mode,
+            reward_mode=resolved_reward_mode,
         )
         try:
             episodes_payload = [_run_random_episode(env, task, task_seed + index) for index in range(episodes)]
@@ -49,7 +51,7 @@ def evaluate_suite(
         "policy": policy,
         "episodes": episodes,
         "seed": seed,
-        "reward_mode": reward_mode or get_task_spec(suite_id, list_tasks(suite_id)[0].task_id).default_reward_mode,
+        "reward_mode": resolved_reward_mode or get_task_spec(suite_id, list_tasks(suite_id)[0].task_id).default_reward_mode,
         "tasks": task_payloads,
         "aggregate": aggregate,
     }
@@ -73,18 +75,20 @@ def _run_random_episode(env, task, seed: int) -> dict[str, Any]:
         obs, reward, terminated, truncated, last_info = env.step(action)
         total_reward += float(reward)
         length = step_index + 1
-        for key, value in last_info.get("reward_terms", {}).items():
+        reward_terms = last_info.get("reward", {}).get("terms", {})
+        for key, value in reward_terms.items():
             reward_terms_total[key] = reward_terms_total.get(key, 0.0) + float(value)
         if terminated or truncated:
             break
+    task_info = last_info.get("task", {})
     return {
         "return": total_reward,
         "length": length,
-        "success": bool(last_info.get("success", False)),
-        "failure": bool(last_info.get("failure", False)),
+        "success": bool(task_info.get("success", False)),
+        "failure": bool(task_info.get("failure", False)),
         "truncated": bool(truncated),
-        "task_progress": float(last_info.get("task_progress", 0.0)),
-        "terminated_reason": last_info.get("terminated_reason"),
+        "task_progress": float(task_info.get("progress", 0.0)),
+        "terminated_reason": task_info.get("terminated_reason"),
         "reward_terms": reward_terms_total,
     }
 

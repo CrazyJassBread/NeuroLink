@@ -1,8 +1,7 @@
 # env_diy Reward
 
 This file is the canonical reference for reward implementation and reward-mode
-behavior. Keep exact reward semantics here instead of duplicating them in
-README files.
+behavior.
 
 ## Canonical Path
 
@@ -20,35 +19,42 @@ reward, reward_terms = compute_reward(
     next_state,
     engine_result,
     task_spec=task_config,
-    config=RewardConfig(reward_mode="legacy"),
+    config=RewardConfig(reward_mode="default"),
 )
 ```
 
 ## Reward Modes
 
-- `legacy`
+- `default`
   - default mode
-  - strictly preserves the prior reward behavior used by existing training scripts
+  - preserves existing reward behavior used by current training code
 - `event`
-  - returns named terms such as `picked_key`, `opened_door`, `picked_coin`, `killed_monster`, `hit_trap`, `agent_dead`, `reached_goal`, `step_penalty`
+  - returns named terms such as `picked_key`, `opened_door`, `picked_coin`,
+    `killed_monster`, `hit_trap`, `agent_dead`, `reached_goal`, `step_penalty`
 - `sparse`
   - rewards only terminal success with the configured finish reward
 
-## reward_terms
+## Reward Reporting
 
-`reward_terms` is always returned as a dict. The total reward should equal:
+`reward_terms` is always returned as a dict. The wrapper stores:
+
+- the scalar reward in `info["reward"]["total"]`
+- the decomposition in `info["reward"]["terms"]`
+- the selected mode in `info["reward"]["mode"]`
+
+The scalar step reward should equal:
 
 ```python
 sum(reward_terms.values())
 ```
 
-This is also copied into `info["reward_terms"]`. `info["reward_breakdown"]` is kept as a compatibility alias.
-The default wrapper mode is always `reward_mode="legacy"` unless you opt into another mode explicitly.
+There are no flat compatibility aliases such as `info["reward_terms"]`,
+`info["reward_breakdown"]`, or `info["legacy"]["reward_terms"]`.
 
 ## Extending Reward
 
 To add a new event reward:
 
 1. Make sure the engine emits a stable event name.
-2. Update `env_diy/rewards/reward_fn.py`.
+2. Update the centralized reward rule tables in `env_diy/rewards/reward_fn.py`.
 3. Add or extend a unit test in `tests/test_reward_fn.py`.

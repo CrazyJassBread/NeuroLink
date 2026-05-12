@@ -43,7 +43,7 @@ class _BaseDungeonEnv(gym.Env):
         stuck_penalty_steps: int = 30,
         stuck_penalty: float = -0.01,
         action_repeat: int = 1,
-        reward_mode: str = "legacy",
+        reward_mode: str = "default",
         use_validator_termination: bool = False,
     ):
         super().__init__()
@@ -128,22 +128,22 @@ class _BaseDungeonEnv(gym.Env):
         self.engine.reset(seed=seed)
         observation = self._get_obs()
         info = self._get_info(
-            events=["reset"],
+            events=[],
             event_details=[],
+            reward_total=0.0,
             reward_terms={},
             validator_result=TaskValidationResult(),
-            legacy_terminated=False,
+            engine_terminated=False,
             inner_steps=0,
+            debug_message=None,
         )
         return observation, info
 
     def step(self, action: int) -> tuple[dict[str, np.ndarray], float, bool, bool, dict[str, Any]]:
         assert self.action_space.contains(action), "Invalid action!"
 
-        auto_reset = False
         if self.engine.runtime.pending_reset and self.auto_reset_on_step:
             self.reset()
-            auto_reset = True
         elif self.engine.runtime.pending_reset:
             raise RuntimeError("Episode terminated. Call reset() before step().")
 
@@ -151,7 +151,7 @@ class _BaseDungeonEnv(gym.Env):
         reward_terms: RewardTerms = {}
         merged_events: list[str] = []
         merged_event_details: list[dict[str, Any]] = []
-        legacy_result = None
+        engine_result = None
         inner_steps = 0
 
         for _ in range(self.action_repeat):
@@ -169,36 +169,34 @@ class _BaseDungeonEnv(gym.Env):
             _merge_reward_terms(reward_terms, inner_terms)
             merged_events.extend(result.events)
             merged_event_details.extend(result.event_details)
-            legacy_result = result
+            engine_result = result
             inner_steps += 1
             if result.terminated or result.truncated:
                 break
 
-        assert legacy_result is not None
+        assert engine_result is not None
         validator_result = validate_task(
             self.task_spec,
             self.engine.runtime,
             merged_events,
             merged_event_details,
-            legacy_done=legacy_result.terminated,
+            engine_done=engine_result.terminated,
         )
-        terminated = legacy_result.terminated
-        if self.use_validator_termination and validator_result.validator_matches_legacy:
+        terminated = engine_result.terminated
+        if self.use_validator_termination and validator_result.validator_matches_engine:
             terminated = validator_result.validator_done
 
         observation = self._get_obs()
         info = self._get_info(
             events=merged_events,
             event_details=merged_event_details,
+            reward_total=total_reward,
             reward_terms=reward_terms,
             validator_result=validator_result,
-            legacy_terminated=legacy_result.terminated,
-            auto_reset=auto_reset,
+            engine_terminated=engine_result.terminated,
             inner_steps=inner_steps,
         )
-        if not validator_result.validator_matches_legacy:
-            info["validator_mismatch"] = True
-        return observation, total_reward, terminated, legacy_result.truncated, info
+        return observation, total_reward, terminated, engine_result.truncated, info
 
     def render(self) -> np.ndarray:
         return render_frame(self.engine.runtime.room, self.engine.runtime.player)
@@ -221,28 +219,27 @@ class _BaseDungeonEnv(gym.Env):
         *,
         events: list[str],
         event_details: list[dict[str, Any]],
+        reward_total: float,
         reward_terms: RewardTerms,
         validator_result: TaskValidationResult,
-        legacy_terminated: bool,
-        auto_reset: bool = False,
+        engine_terminated: bool,
         inner_steps: int = 1,
+        debug_message: str | None | object = ...,
     ) -> dict[str, Any]:
-        task_id = self.engine.task_config.task_id if self.engine.task_config is not None else None
-        task_type = self.engine.task_config.task_type if self.engine.task_config is not None else None
         return build_info(
             self.engine.runtime,
             events=events,
             event_details=event_details,
+            reward_total=reward_total,
             reward_terms=reward_terms,
+            reward_mode=self.reward_config.reward_mode,
             map_id=self.engine.map_id,
             movement_pixels=self.engine.move_speed_px,
             action_repeat=self.action_repeat,
             inner_steps=inner_steps,
-            legacy_terminated=legacy_terminated,
+            engine_terminated=engine_terminated,
             validator_result=validator_result,
-            auto_reset=auto_reset,
-            task_id=task_id,
-            task_type=task_type,
+            debug_message=debug_message,
         )
 
     def _player_tile(self) -> tuple[int, int]:
@@ -251,9 +248,9 @@ class _BaseDungeonEnv(gym.Env):
 
 
 class DungeonEnv(_BaseDungeonEnv):
-    """Legacy compatibility wrapper.
+    """Compatibility wrapper.
 
-    This class preserves old convenience attributes and auto-reset behavior for existing scripts.
+    This class preserves convenience attributes and auto-reset behavior for existing scripts.
     New code should prefer `make_env(api="gym")`, which returns `GymDungeonEnv`.
     """
 
@@ -267,7 +264,7 @@ class DungeonEnv(_BaseDungeonEnv):
         stuck_penalty_steps: int = 30,
         stuck_penalty: float = -0.01,
         action_repeat: int = 1,
-        reward_mode: str = "legacy",
+        reward_mode: str = "default",
         use_validator_termination: bool = False,
     ):
         super().__init__(
@@ -339,7 +336,7 @@ class DungeonEnv(_BaseDungeonEnv):
 class GymDungeonEnv(DungeonEnv):
     """Canonical Gymnasium wrapper.
 
-    The legacy convenience attributes still exist during the current compatibility window, but
+    The compatibility convenience attributes still exist during the current transition window, but
     new code should treat this as a standard Gym env and rely on `reset/step/render/close`.
     """
 
@@ -353,7 +350,7 @@ class GymDungeonEnv(DungeonEnv):
         stuck_penalty_steps: int = 30,
         stuck_penalty: float = -0.01,
         action_repeat: int = 1,
-        reward_mode: str = "legacy",
+        reward_mode: str = "default",
         use_validator_termination: bool = True,
     ):
         super().__init__(

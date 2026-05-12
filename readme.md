@@ -45,11 +45,3 @@ python rl/train_single_task.py --task avoid_traps --episodes 1 --max-steps 20 --
 - [Training Guide](docs/guides/training.md)
 - [Development Guide](docs/project/development-guide.md)
 
-## Tests
-
-```bash
-source .venv/bin/activate
-python -m pytest -q
-```
-
-Some vendored or historical test modules may require optional dependencies; see the latest worklog under `docs/worklog/` for current known issues.

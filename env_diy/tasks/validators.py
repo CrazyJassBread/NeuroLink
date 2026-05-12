@@ -12,7 +12,7 @@ def validate_task(
     events: list[str],
     event_details: list[dict],
     *,
-    legacy_done: bool,
+    engine_done: bool,
 ) -> TaskValidationResult:
     validator = get_validator(task_spec.task_type if task_spec is not None else None)
     if validator is None:
@@ -26,9 +26,9 @@ def validate_task(
         task_progress=result.task_progress,
         terminated_reason=result.terminated_reason,
         subgoal_status=result.subgoal_status,
-        legacy_done=bool(legacy_done),
+        engine_done=bool(engine_done),
         validator_done=validator_done,
-        validator_matches_legacy=bool(legacy_done) == validator_done,
+        validator_matches_engine=bool(engine_done) == validator_done,
     )
 
 
