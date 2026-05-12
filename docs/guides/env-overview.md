@@ -1,6 +1,10 @@
-# Env DIY Game Guide
+# Env DIY Guide
 
 This guide documents the current `env_diy` Gymnasium dungeon environment for human players, RL researchers, and future developers. It is based on the current code in `env_diy/`, the prototype map config, and the test suite.
+
+Use this file for the big-picture walkthrough of how the environment behaves.
+For exact constructor, observation, and info-field definitions, use
+`docs/reference/env-api.md`.
 
 ## 1. Overview
 

@@ -202,3 +202,11 @@ new runs should prefer `rl/train.py`.
 Keep dependency-light smoke scripts in `rl/` and shared helpers in `rl/utils/`.
 Classic RL algorithms should be added under `rl/baselines/` and exposed through
 `rl/train.py`; they should not replace the random policy smoke path.
+
+## Related Docs
+
+- [Docs Hub](../docs/README.md)
+- [Env Overview](../docs/guides/env-overview.md)
+- [Environment API](../docs/reference/env-api.md)
+- [Benchmark v0](../docs/reference/benchmark-v0.md)
+- [Development Guide](../docs/project/development-guide.md)

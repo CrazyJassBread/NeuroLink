@@ -1,5 +1,9 @@
 # env_diy Benchmark v0
 
+This file defines the current benchmark v0 smoke suite only.
+For broader project process and benchmark maturity policy, use
+`docs/project/development-guide.md`.
+
 ## Suite
 
 The initial benchmark suite is `NesyLink-v0`.

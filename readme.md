@@ -6,7 +6,6 @@ NeuroLink is a reinforcement learning workspace for Link's Awakening-style exper
 
 - `env_diy/`: original pixel dungeon environment, procedural renderer, pygame runner, and JSON map data.
 - `rl/`: dependency-light smoke training scripts and RL utilities for `env_diy`.
-- `orgin_zelda/`: PyBoy-based historical environments and training code.
 - `world_model/`: DreamerV3 integration experiments.
 - `docs/`: implementation notes, game guide, training notes, skills, and worklogs.
 
@@ -16,7 +15,6 @@ NeuroLink is a reinforcement learning workspace for Link's Awakening-style exper
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements/requirements.txt
-python -m pytest -q tests/test_env_diy_env.py tests/test_rl_smoke.py
 ```
 
 ## Human Play
@@ -28,12 +26,11 @@ python -m env_diy.main
 
 Controls are arrow keys for held movement, `Z` for A/interact, `X` for held B/shield, and `Esc` to quit.
 
-## RL Smoke Training
+## RL Training
 
-`env_diy` now uses 1 pixel per environment tick for base player movement. For RL exploration, use action repeat at the training-script layer:
+Tips 💡: `env_diy` now uses 1 pixel per environment tick for base player movement. For RL exploration, use action repeat at the training-script layer:
 
 ```bash
-source .venv/bin/activate
 python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 0
 python rl/train_single_task.py --task avoid_traps --episodes 1 --max-steps 20 --action-repeat 4 --seed 0
 ```
@@ -42,11 +39,11 @@ python rl/train_single_task.py --task avoid_traps --episodes 1 --max-steps 20 --
 
 ## Documentation
 
+- [Docs Hub](docs/README.md)
 - [Env DIY README](env_diy/README.md)
-- [Env DIY Game Guide](docs/env_diy_game_guide.md)
-- [RL Smoke Training](rl/README.md)
-- [Training Notes](docs/train.md)
-- [Development Guide](docs/DEVELOPMENT_GUIDE.md)
+- [Env Overview](docs/guides/env-overview.md)
+- [Training Guide](docs/guides/training.md)
+- [Development Guide](docs/project/development-guide.md)
 
 ## Tests
 

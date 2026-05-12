@@ -1,5 +1,9 @@
 # env_diy Reward
 
+This file is the canonical reference for reward implementation and reward-mode
+behavior. Keep exact reward semantics here instead of duplicating them in
+README files.
+
 ## Canonical Path
 
 There is exactly one real reward implementation:

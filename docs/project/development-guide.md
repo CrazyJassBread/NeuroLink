@@ -138,11 +138,10 @@ rl/
   outputs/            # local RL outputs
 
 docs/
-  DEVELOPMENT_GUIDE.md
-  benchmark.md
-  env_api.md
-  reward.md
-  tasks.md
+  README.md
+  guides/
+  reference/
+  project/
   worklog/
 ```
 
@@ -850,10 +849,13 @@ features are actually implemented.
 
 Current supporting docs should remain aligned with code:
 
-- `docs/env_api.md`
-- `docs/reward.md`
-- `docs/tasks.md`
-- `docs/benchmark.md`
+- `docs/README.md`
+- `docs/guides/env-overview.md`
+- `docs/guides/training.md`
+- `docs/reference/env-api.md`
+- `docs/reference/rewards.md`
+- `docs/reference/tasks-and-validators.md`
+- `docs/reference/benchmark-v0.md`
 - `env_diy/README.md`
 - `rl/README.md`
 

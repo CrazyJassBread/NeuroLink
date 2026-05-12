@@ -1,5 +1,8 @@
 # env_diy Tasks
 
+This file documents task metadata, runtime validator behavior, and task
+extension points. Keep exact validator/output details here.
+
 ## Canonical Task Modules
 
 - `env_diy/tasks/task_spec.py`

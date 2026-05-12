@@ -1,5 +1,9 @@
 # env_diy API
 
+This file is the precise API reference for environment construction, Gymnasium
+semantics, observation keys, and info fields.
+Use `docs/guides/env-overview.md` for narrative gameplay and mechanics context.
+
 ## Create an Environment
 
 Canonical entrypoint:
