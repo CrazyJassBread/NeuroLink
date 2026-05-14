@@ -3,7 +3,7 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
-__all__ = ["DungeonEnv", "GymDungeonEnv"]
+__all__ = ["DungeonEnv", "GymDungeonEnv", "make_env"]
 
 
 def __getattr__(name: str) -> Any:
@@ -18,4 +18,8 @@ def __getattr__(name: str) -> Any:
         from ..wrappers import DungeonEnv, GymDungeonEnv
 
         return {"DungeonEnv": DungeonEnv, "GymDungeonEnv": GymDungeonEnv}[name]
+    if name == "make_env":
+        from .factory import make_env
+
+        return make_env
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

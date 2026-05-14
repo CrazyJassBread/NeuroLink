@@ -9,15 +9,14 @@ class BenchmarkTaskSpec:
     suite_id: str
     task_id: str
     map_id: str
-    task_rooms: tuple[str, ...]
-    config_path: Path
-    task_registry_id: str | None
+    map_path: Path
+    reward_id: str | None
+    reward_module: str | None
     difficulty: str
     max_episode_steps: int
     observation_mode: str
     action_mode: str
-    success_condition: str
-    failure_condition: str
+    objective: str
 
 
 @dataclass(frozen=True)

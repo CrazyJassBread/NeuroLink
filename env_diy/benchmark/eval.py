@@ -70,20 +70,21 @@ def _run_random_episode(env, task, seed: int) -> dict[str, Any]:
         obs, reward, terminated, truncated, last_info = env.step(action)
         total_reward += float(reward)
         length = step_index + 1
-        reward_terms = dict(getattr(env, "last_reward_terms", {}))
+        reward_terms = dict(last_info.get("reward", {}).get("reward_signals", {}))
         for key, value in reward_terms.items():
             reward_terms_total[key] = reward_terms_total.get(key, 0.0) + float(value)
         if terminated or truncated:
             break
-    outcome = getattr(env, "episode_outcome", None)
+    reward_info = dict(last_info.get("reward", {}))
+    terminated_reason = last_info.get("terminal_reason")
+    completed = bool(reward_info.get("terminated", False)) and terminated_reason != "agent_dead"
     return {
         "return": total_reward,
         "length": length,
-        "success": bool(getattr(outcome, "success", False)),
-        "failure": bool(getattr(outcome, "failure", False)),
+        "completed": completed,
+        "dead": bool(last_info.get("game", {}).get("dead", False)),
         "truncated": bool(truncated),
-        "task_progress": float(getattr(outcome, "progress", 0.0) or 0.0),
-        "terminated_reason": getattr(outcome, "terminated_reason", last_info.get("terminal_reason")),
+        "terminated_reason": terminated_reason,
         "reward_terms": reward_terms_total,
     }
 
@@ -93,14 +94,14 @@ def _task_to_payload(task) -> dict[str, Any]:
         "suite_id": task.suite_id,
         "task_id": task.task_id,
         "map_id": task.map_id,
-        "task_rooms": list(task.task_rooms),
+        "map_path": str(task.map_path),
         "difficulty": task.difficulty,
         "max_episode_steps": task.max_episode_steps,
-        "task_registry_id": task.task_registry_id,
+        "reward_id": task.reward_id,
+        "reward_module": task.reward_module,
         "observation_mode": task.observation_mode,
         "action_mode": task.action_mode,
-        "success_condition": task.success_condition,
-        "failure_condition": task.failure_condition,
+        "objective": task.objective,
     }
 
 

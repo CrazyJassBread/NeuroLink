@@ -43,3 +43,6 @@ __all__ = [
     "first_valid_entry_spawn_tile",
     "opposite_direction",
 ]
+from .loader import load_map
+
+__all__ = ["load_map"]

@@ -1,12 +1,12 @@
 # env_diy Benchmark v0
 
 This file defines the current benchmark v0 smoke suite only.
-For broader project process and benchmark maturity policy, use
+For broader benchmark process and maturity policy, use
 `docs/project/development-guide.md`.
 
 ## Suite
 
-The initial benchmark suite is `NesyLink-v0`.
+The current suite is `NesyLink-v0`.
 
 Tasks included:
 
@@ -15,7 +15,8 @@ Tasks included:
 - `kill_monsters`
 - `key_door`
 
-This benchmark layer organizes existing environments only. It does not change default movement, reward, or game mechanics.
+This benchmark layer organizes existing environments only. It does not change
+base movement or core game mechanics.
 
 ## Registry API
 
@@ -38,19 +39,14 @@ spec = get_task_spec("NesyLink-v0", "avoid_traps")
 env = make_benchmark_env("NesyLink-v0", "avoid_traps", seed=0)
 ```
 
-`make_benchmark_env(...)` delegates to `env_diy.env.make_env(api="gym")`.
+For task maps, `make_benchmark_env(...)` creates the env directly from
+`map_path + reward_id/reward_module`. The `prototype` task uses the base
+reward configuration.
 
 ## Random Eval
 
 ```bash
 python -m env_diy.benchmark.eval --suite NesyLink-v0 --policy random --episodes 10 --seed 0
-```
-
-Optional reward override:
-
-```bash
-python -m env_diy.benchmark.eval --suite NesyLink-v0 --policy random --episodes 10 --seed 0 --reward-mode event
-python -m env_diy.benchmark.eval --suite NesyLink-v0 --policy random --episodes 10 --seed 0 --reward-mode sparse
 ```
 
 Save JSON:
@@ -64,23 +60,35 @@ python -m env_diy.benchmark.eval --suite NesyLink-v0 --policy random --episodes 
 Per-task metrics:
 
 - `episodes`
-- `success_rate`
-- `failure_rate`
+- `completion_rate`
+- `death_rate`
 - `truncation_rate`
 - `mean_return`
 - `mean_episode_length`
-- `mean_task_progress`
 - `mean_reward_terms`
 - `terminated_reason_counts`
 
 Suite aggregate metrics:
 
-- `mean_success_rate`
+- `mean_completion_rate`
 - `mean_return`
 - `mean_episode_length`
 
-## Reward Modes
+## Benchmark Task Metadata
 
-- default benchmark reward mode is `default`
-- `event` and `sparse` are optional evaluation modes
-- benchmark v0 does not change the environment default reward behavior
+Benchmark specs currently track fields such as:
+
+- `suite_id`
+- `task_id`
+- `map_id`
+- `map_path`
+- `reward_id`
+- `reward_module`
+- `difficulty`
+- `max_episode_steps`
+- `observation_mode`
+- `action_mode`
+- `objective`
+
+Task metadata lives in benchmark suite specs. It does not
+come from map JSON or base `info`.

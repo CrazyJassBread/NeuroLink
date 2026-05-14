@@ -47,12 +47,19 @@ def build_info(
         "message": resolved_debug_message,
         "engine_done": bool(engine_terminated),
     }
+    game = {
+        "dead": bool(runtime.player.health <= 0 or terminal_reason == "agent_dead"),
+        "room_changed": bool(event_flags.get("room_changed", False)),
+        "exit_reached": bool(event_flags.get("exit_reached", False)),
+        "world_completed": bool(terminal_reason == "world_completed"),
+    }
 
     info: dict[str, Any] = {
         "episode": {
             "id": runtime.episode,
             "step_count": runtime.step_count,
             "seed": runtime.seed,
+            "no_progress_steps": runtime.no_progress_steps,
         },
         "env": {
             "map_id": map_id,
@@ -72,6 +79,7 @@ def build_info(
             "counts": event_counts,
             "details": list(event_details),
         },
+        "game": game,
         "terminal_reason": terminal_reason,
         "control": {
             "action_repeat": int(action_repeat),

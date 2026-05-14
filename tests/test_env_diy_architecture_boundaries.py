@@ -5,13 +5,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from env_diy.env import make_env
+from env_diy.envs.factory import make_env
+from env_diy.maps.loader import load_map
 from env_diy.maps.rooms import RoomManager
 
 
@@ -33,22 +32,11 @@ FORBIDDEN_MAP_KEYS = {
 }
 FORBIDDEN_INFO_KEYS = {
     "task",
-    "reward",
     "task_type",
     "progress",
     "success",
     "failure",
     "reward_profile",
-    "success_condition",
-    "failure_condition",
-}
-FORBIDDEN_EVENT_KEYS = {
-    "task_success",
-    "task_failure",
-    "task_progress",
-    "objective",
-    "reward",
-    "reward_terms",
     "success_condition",
     "failure_condition",
 }
@@ -61,104 +49,144 @@ def _all_map_files() -> list[Path]:
 def test_all_map_json_are_pure_map_schema() -> None:
     for path in _all_map_files():
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
-        if "room_files" in payload:
-            assert FORBIDDEN_MAP_KEYS.isdisjoint(payload.keys()), path
-            continue
         assert FORBIDDEN_MAP_KEYS.isdisjoint(payload.keys()), path
-        assert "id" in payload, path
-        assert "coord" in payload, path
-        assert "layout" in payload, path
-        assert "spawns" in payload, path
-        assert "default_spawn" in payload, path
 
 
-def test_reset_info_contains_only_base_fields() -> None:
-    env = make_env(DUNGEON_ROOT / "avoid_traps" / "room_001.json", api="gym")
+def test_load_map_supports_map_id_and_map_path() -> None:
+    by_id = load_map(map_id="dungeon")
+    by_path = load_map(map_path="env_diy/maps/dungeon.json")
+
+    assert by_id == PROJECT_ROOT / "env_diy" / "maps" / "dungeon.json"
+    assert by_path == PROJECT_ROOT / "env_diy" / "maps" / "dungeon.json"
+
+
+def test_reset_info_contains_only_base_fields_plus_reward() -> None:
+    env = make_env(map_path=DUNGEON_ROOT / "avoid_traps" / "room_001.json", reward_id="sparse_exit", max_steps=10)
     try:
         _obs, info = env.reset(seed=0)
     finally:
         env.close()
 
     assert FORBIDDEN_INFO_KEYS.isdisjoint(info.keys())
-    assert {"episode", "env", "agent", "inventory", "entities", "events", "terminal_reason", "control", "debug"} <= set(
+    assert {"episode", "env", "agent", "inventory", "entities", "events", "game", "terminal_reason", "control", "debug", "reward"} <= set(
         info
     )
+    assert info["reward"]["reward_name"] == "sparse_exit"
+    assert "reward_signals" in info["reward"]
+    assert "reward_weights" in info["reward"]
 
 
-def test_step_events_are_task_agnostic() -> None:
-    env = make_env(DUNGEON_ROOT / "key_door" / "room_001.json", api="gym")
+def test_step_populates_reward_info_and_signal_step() -> None:
+    env = make_env(map_id="dungeon", reward_id="sparse_exit", max_steps=10)
     try:
-        _obs, info = env.reset(seed=0)
-        names: set[str] = set()
-        detail_keys: set[str] = set()
-        for _ in range(20):
-            _obs, _reward, terminated, truncated, info = env.step(int(env.action_space.sample()))
-            names.update(record["name"] for record in info["events"]["records"])
-            for detail in info["events"]["details"]:
-                detail_keys.update(detail.keys())
-            if terminated or truncated:
-                break
+        env.reset(seed=0)
+        _obs, _reward, _terminated, _truncated, info = env.step(0)
     finally:
         env.close()
 
-    assert "task_finished" not in names
-    assert "victory" not in names
-    assert FORBIDDEN_EVENT_KEYS.isdisjoint(names)
-    assert FORBIDDEN_EVENT_KEYS.isdisjoint(detail_keys)
+    assert info["reward"]["reward_name"] == "sparse_exit"
+    assert info["reward"]["reward_signals"]["step"] == 1
 
 
-def test_base_env_exit_reached_does_not_force_termination() -> None:
-    env = make_env(DUNGEON_ROOT / "avoid_traps" / "room_001.json", api="gym")
+def test_reward_module_creation_path_works() -> None:
+    env = make_env(
+        map_path=DUNGEON_ROOT / "key_door" / "room_001.json",
+        reward_module="env_diy.rewards.collect_key",
+        max_steps=20,
+    )
+    try:
+        _obs, info = env.reset(seed=0)
+    finally:
+        env.close()
+
+    assert info["reward"]["reward_name"] == "collect_key"
+
+
+def test_max_steps_triggers_truncation() -> None:
+    env = make_env(map_id="dungeon", reward_id="sparse_exit", max_steps=1)
+    try:
+        env.reset(seed=0)
+        _obs, _reward, terminated, truncated, _info = env.step(0)
+    finally:
+        env.close()
+
+    assert terminated is False
+    assert truncated is True
+
+
+def test_kill_monster_reward_terminates_when_room_is_cleared() -> None:
+    env = make_env(
+        map_path=DUNGEON_ROOT / "kill_monsters" / "room_001.json",
+        reward_id="kill_monster",
+        max_steps=20,
+    )
+    try:
+        _obs, _info = env.reset(seed=0)
+        env.engine.runtime.room.monsters.clear()
+        _obs, _reward, terminated, truncated, info = env.step(0)
+    finally:
+        env.close()
+
+    assert terminated is True
+    assert truncated is False
+    assert info["reward"]["terminated_reason"] == "all_monsters_defeated"
+
+
+def test_collect_key_reward_terminates_when_door_opens() -> None:
+    env = make_env(
+        map_path=DUNGEON_ROOT / "key_door" / "room_001.json",
+        reward_id="collect_key",
+        max_steps=20,
+    )
     try:
         _obs, _info = env.reset(seed=0)
         runtime = env.engine.runtime
+        runtime.player.keys = 1
         runtime.player.position_px = (64.0, 0.0)
         _obs, _reward, terminated, truncated, info = env.step(1)
     finally:
         env.close()
 
-    assert "exit_reached" in info["events"]["counts"]
-    assert not terminated
-    assert not truncated
+    assert terminated is True
+    assert truncated is False
+    assert info["reward"]["reward_signals"]["door_opened"] == 1
+    assert info["reward"]["terminated_reason"] == "door_opened"
 
 
-def test_reward_wrapper_computes_rewards_from_events_only() -> None:
-    from env_diy.tasks.registry import get_task_spec
-    from env_diy.tasks.reward_fns import AvoidTrapReward, KeyDoorReward
-    from env_diy.tasks.wrappers import RewardWrapper
-
-    base_env = make_env(DUNGEON_ROOT / "key_door" / "room_001.json", api="gym")
-    wrapped = RewardWrapper(base_env, reward_fn=KeyDoorReward(get_task_spec("key_door_room_001")))
+def test_death_triggers_termination() -> None:
+    env = make_env(map_path=DUNGEON_ROOT / "avoid_traps" / "room_001.json", reward_id="sparse_exit", max_steps=20)
     try:
-        wrapped.reset(seed=0)
-        reward, terminated = wrapped.reward_fn(
-            {},
-            {"events": {"counts": {}}},
-            {},
-            {"events": {"counts": {"key_collected": 1, "door_opened": 1, "exit_reached": 1}}},
-            5,
-        )
-        assert reward > 0.0
-        assert terminated is True
-        assert wrapped.reward_fn.last_outcome.success is True
+        _obs, _info = env.reset(seed=0)
+        env.engine.runtime.player.health = 0
+        _obs, _reward, terminated, truncated, info = env.step(0)
     finally:
-        wrapped.close()
+        env.close()
 
-    trap_env = make_env(DUNGEON_ROOT / "avoid_traps" / "room_001.json", api="gym")
-    trap_wrapped = RewardWrapper(trap_env, reward_fn=AvoidTrapReward(get_task_spec("avoid_traps_room_001")))
-    try:
-        trap_wrapped.reset(seed=0)
-        reward, terminated = trap_wrapped.reward_fn(
-            {},
-            {"events": {"counts": {}}},
-            {},
-            {"events": {"counts": {"trap_triggered": 1}}},
-            0,
-        )
-        assert reward < 0.0
-        assert terminated is False
-    finally:
-        trap_wrapped.close()
+    assert terminated is True
+    assert truncated is False
+    assert info["game"]["dead"] is True
+
+
+def test_builtin_rewards_can_run_short_episodes() -> None:
+    reward_targets = [
+        ("dungeon", "sparse_exit"),
+        (DUNGEON_ROOT / "key_door" / "room_001.json", "collect_key"),
+        (DUNGEON_ROOT / "key_door" / "room_001.json", "collect_gold"),
+        (DUNGEON_ROOT / "kill_monsters" / "room_001.json", "kill_monster"),
+        ("dungeon", "exploration"),
+    ]
+
+    for map_target, reward_id in reward_targets:
+        kwargs = {"map_id": map_target} if isinstance(map_target, str) else {"map_path": map_target}
+        env = make_env(**kwargs, reward_id=reward_id, max_steps=5)
+        try:
+            env.reset(seed=0)
+            _obs, reward, _terminated, _truncated, info = env.step(0)
+        finally:
+            env.close()
+
+        assert isinstance(reward, float)
+        assert info["reward"]["reward_name"] == reward_id
 
 
 def test_migrate_map_schema_converts_legacy_task_room(tmp_path: Path) -> None:

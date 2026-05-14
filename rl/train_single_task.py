@@ -7,16 +7,21 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 if __package__:
-    from rl.utils import make_task_env, observation_is_valid
+    from rl.utils import make_env, observation_is_valid
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from utils import make_task_env, observation_is_valid
+    from utils import make_env, observation_is_valid
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SINGLE_TASK_ROOT = PROJECT_ROOT / "env_diy" / "map_data" / "dungeons"
 DEFAULT_OUTPUT_PATH = Path("rl") / "outputs" / "single_task_training.jsonl"
 SUPPORTED_TASKS = {"avoid_traps", "kill_monsters", "key_door"}
+TASK_REWARD_IDS = {
+    "avoid_traps": "sparse_exit",
+    "kill_monsters": "kill_monster",
+    "key_door": "collect_key",
+}
 
 
 @dataclass(frozen=True)
@@ -26,10 +31,8 @@ class SingleTaskEpisodeResult:
     length: int
     terminated: bool
     truncated: bool
-    success: bool
-    failure: bool
     terminated_reason: str | None
-    task_id: str
+    reward_name: str
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,6 +50,11 @@ def parse_args() -> argparse.Namespace:
         help="Repeat each sampled agent action for this many environment ticks.",
     )
     parser.add_argument("--config", type=Path, default=None, help="Explicit single-task room JSON path.")
+    parser.add_argument(
+        "--reward-module",
+        default=None,
+        help="Reward module import path. Overrides the default built-in reward id for --task.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -75,6 +83,7 @@ def run_single_task_training(
     max_steps: int,
     seed: int,
     config: Path | None = None,
+    reward_module: str | None = None,
     render: bool = False,
     action_repeat: int = 1,
     output: Path = DEFAULT_OUTPUT_PATH,
@@ -87,12 +96,15 @@ def run_single_task_training(
         raise ValueError("--action-repeat must be >= 1")
 
     config_path = resolve_single_task_config(task=task, room=room, config=config)
-    env = make_task_env(
-        f"{task}_room_001",
+    resolved_reward_id = None if reward_module is not None else TASK_REWARD_IDS.get(task)
+    env = make_env(
         config_path=config_path,
+        reward_id=resolved_reward_id,
+        reward_module=reward_module,
         render_mode="rgb_array" if render else None,
         seed=seed,
         action_repeat=action_repeat,
+        max_steps=max_steps,
     )
     results: list[SingleTaskEpisodeResult] = []
     try:
@@ -104,10 +116,8 @@ def run_single_task_training(
             total_reward = 0.0
             terminated = False
             truncated = False
-            success = False
-            failure = False
             terminated_reason = None
-            task_id = f"{task}_room_001"
+            reward_name = "base"
             length = 0
 
             for step_index in range(max_steps):
@@ -117,12 +127,11 @@ def run_single_task_training(
                     raise RuntimeError(
                         f"step() returned an observation outside observation_space "
                         f"at episode {episode}, step {step_index}"
-                    )
+                )
                 total_reward += float(reward)
                 length = step_index + 1
-                success = success or bool(getattr(env, "last_outcome", None) and env.last_outcome.success)
-                failure = failure or bool(getattr(env, "last_outcome", None) and env.last_outcome.failure)
-                terminated_reason = getattr(getattr(env, "last_outcome", None), "terminated_reason", None)
+                terminated_reason = info.get("terminal_reason")
+                reward_name = str(info.get("reward", {}).get("reward_name", reward_name))
 
                 if render:
                     env.render()
@@ -135,20 +144,17 @@ def run_single_task_training(
                 length=length,
                 terminated=terminated,
                 truncated=truncated,
-                success=success,
-                failure=failure,
                 terminated_reason=terminated_reason,
-                task_id=task_id,
+                reward_name=reward_name,
             )
             results.append(result)
             print(
-                "episode={episode} reward={reward:.3f} length={length} success={success} failure={failure} "
+                "episode={episode} reward={reward:.3f} length={length} reward_name={reward_name} "
                 "terminated={terminated} truncated={truncated} reason={reason}".format(
                     episode=result.episode,
                     reward=result.total_reward,
                     length=result.length,
-                    success=result.success,
-                    failure=result.failure,
+                    reward_name=result.reward_name,
                     terminated=result.terminated,
                     truncated=result.truncated,
                     reason=result.terminated_reason,
@@ -158,9 +164,8 @@ def run_single_task_training(
         env.close()
 
     _write_results_jsonl(output, results)
-    success_rate = sum(1 for result in results if result.success) / len(results)
     mean_reward = sum(result.total_reward for result in results) / len(results)
-    print(f"success_rate={success_rate:.2f} mean_reward={mean_reward:.3f}")
+    print(f"mean_reward={mean_reward:.3f}")
     print(f"wrote {len(results)} episode summaries to {output}")
     return results
 
@@ -182,6 +187,7 @@ def main() -> None:
         max_steps=args.max_steps,
         seed=args.seed,
         config=args.config,
+        reward_module=args.reward_module,
         render=args.render,
         action_repeat=args.action_repeat,
         output=args.output,

@@ -36,6 +36,8 @@ class BaseGameEnv(gym.Env):
         auto_reset_on_step: bool = True,
         move_speed_px: float = 1.0,
         action_repeat: int = 1,
+        reward_fn: Any | None = None,
+        max_steps: int | None = None,
         **_: Any,
     ):
         super().__init__()
@@ -45,6 +47,9 @@ class BaseGameEnv(gym.Env):
         self.auto_reset_on_step = bool(auto_reset_on_step)
         self.action_repeat = int(action_repeat)
         self.native_action_repeat = self.action_repeat
+        self.reward_fn = reward_fn
+        self.max_steps = None if max_steps is None else int(max_steps)
+        self.last_reward_info: dict[str, Any] = {}
         self.engine = DungeonEngine(room_file, move_speed_px=move_speed_px)
 
         self.action_space = spaces.Discrete(len(ACTION_LABELS))
@@ -116,6 +121,10 @@ class BaseGameEnv(gym.Env):
             inner_steps=0,
             debug_message=None,
         )
+        if self.reward_fn is not None:
+            self.reward_fn.reset(observation, info)
+            info["reward"] = self.reward_fn.build_reward_info(signals={})
+            self.last_reward_info = dict(info["reward"])
         return observation, info
 
     def step(self, action: int) -> tuple[dict[str, np.ndarray], float, bool, bool, dict[str, Any]]:
@@ -150,7 +159,32 @@ class BaseGameEnv(gym.Env):
             terminal_reason=engine_result.terminated_reason,
             inner_steps=inner_steps,
         )
-        return observation, 0.0, engine_result.terminated, engine_result.truncated, info
+        if self.reward_fn is not None:
+            reward, reward_info = self.reward_fn(observation, info, action)
+        else:
+            reward = 0.0
+            reward_info = {
+                "reward_name": "base",
+                "reward_signals": {},
+                "reward_weights": {},
+                "terminated": False,
+                "terminated_reason": None,
+            }
+
+        terminated = bool(engine_result.terminated or reward_info.get("terminated", False))
+        if terminated and not self.engine.runtime.pending_reset:
+            self.engine.runtime.pending_reset = True
+        if info.get("terminal_reason") is None and reward_info.get("terminated_reason") is not None:
+            info["terminal_reason"] = reward_info["terminated_reason"]
+
+        truncated = bool(
+            not terminated
+            and self.max_steps is not None
+            and info["episode"]["step_count"] >= self.max_steps
+        )
+        info["reward"] = reward_info
+        self.last_reward_info = dict(reward_info)
+        return observation, float(reward), terminated, truncated, info
 
     def render(self) -> np.ndarray:
         return render_frame(self.engine.runtime.room, self.engine.runtime.player)
@@ -210,6 +244,8 @@ class DungeonEnv(BaseGameEnv):
         auto_reset_on_step: bool = True,
         move_speed_px: float = 1.0,
         action_repeat: int = 1,
+        reward_fn: Any | None = None,
+        max_steps: int | None = None,
         **kwargs: Any,
     ):
         super().__init__(
@@ -218,6 +254,8 @@ class DungeonEnv(BaseGameEnv):
             auto_reset_on_step=auto_reset_on_step,
             move_speed_px=move_speed_px,
             action_repeat=action_repeat,
+            reward_fn=reward_fn,
+            max_steps=max_steps,
             **kwargs,
         )
 
@@ -284,6 +322,8 @@ class GymDungeonEnv(DungeonEnv):
         auto_reset_on_step: bool = False,
         move_speed_px: float = 1.0,
         action_repeat: int = 1,
+        reward_fn: Any | None = None,
+        max_steps: int | None = None,
         **kwargs: Any,
     ):
         super().__init__(
@@ -292,6 +332,8 @@ class GymDungeonEnv(DungeonEnv):
             auto_reset_on_step=auto_reset_on_step,
             move_speed_px=move_speed_px,
             action_repeat=action_repeat,
+            reward_fn=reward_fn,
+            max_steps=max_steps,
             **kwargs,
         )
 

@@ -1,0 +1,38 @@
+{
+  "id": "dungeon",
+  "coord": [0, 0],
+  "layout": [
+    "..........",
+    ".##.##.##.",
+    "..........",
+    ".##.##.##.",
+    "..........",
+    "..........",
+    "..........",
+    ".........."
+  ],
+  "spawns": {
+    "default": [4, 6],
+    "from_south": [4, 6]
+  },
+  "default_spawn": "default",
+  "objects": [],
+  "exits": [
+    {
+      "id": "north_exit",
+      "direction": "north",
+      "target_room": "dungeon",
+      "target_entry": "from_south",
+      "type": "normal",
+      "success_message": "CLEARED!"
+    },
+    {
+      "id": "south_exit",
+      "direction": "south",
+      "target_room": "dungeon",
+      "target_entry": "from_south",
+      "type": "normal",
+      "success_message": "RETRY"
+    }
+  ]
+}

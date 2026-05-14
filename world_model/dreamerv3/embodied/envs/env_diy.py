@@ -17,23 +17,21 @@ if str(PROJECT_ROOT) not in sys.path:
 class EnvDIY(embodied.Env):
 
   LOG_EVENTS = (
-      'opened_chest',
-      'got_key',
-      'got_gold',
-      'got_item',
-      'healed',
-      'pressed_button',
-      'room_transition',
-      'door_unlocked',
-      'blocked_locked',
-      'missing_requirement',
-      'trap_damage',
-      'monster_hit',
+      'chest_opened',
+      'key_collected',
+      'gold_collected',
+      'item_collected',
+      'agent_healed',
+      'button_pressed',
+      'room_changed',
+      'door_opened',
+      'action_blocked',
+      'trap_triggered',
       'monster_damaged',
-      'shield_block',
+      'action_shield',
       'monster_killed',
-      'game_over',
-      'victory',
+      'agent_dead',
+      'exit_reached',
   )
 
   OBS_KEYS = (
@@ -71,14 +69,12 @@ class EnvDIY(embodied.Env):
 
     self._config_path = self._resolve_config_path(config_path)
     self._env = make_env(
-        self._config_path,
+        map_path=self._config_path,
         api='gym',
         render_mode='rgb_array',
         auto_reset_on_step=False,
         move_speed_px=move_speed_px,
-        stuck_penalty_enabled=stuck_penalty_enabled,
-        stuck_penalty_steps=stuck_penalty_steps,
-        stuck_penalty=stuck_penalty)
+        max_steps=length)
     self._image = bool(image)
     self._image_size = tuple(image_size)
     self._length = int(length) if length else 0
@@ -163,7 +159,7 @@ class EnvDIY(embodied.Env):
     self._step = 0
     self._done = False
     self._last_noop_mapped = False
-    self._visited_rooms = {info.get('room_id', '')}
+    self._visited_rooms = {info.get('env', {}).get('room_id', '')}
     return self._obs(obs, 0.0, info, is_first=True)
 
   def _agent_action(self, raw_action):
@@ -182,7 +178,7 @@ class EnvDIY(embodied.Env):
       is_first=False,
       is_last=False,
       is_terminal=False):
-    self._visited_rooms.add(info.get('room_id', ''))
+    self._visited_rooms.add(info.get('env', {}).get('room_id', ''))
     result = {
         'vector': self._vector(obs),
         'reward': np.float32(reward),
@@ -224,27 +220,29 @@ class EnvDIY(embodied.Env):
     return np.asarray(pil_image, dtype=np.uint8)
 
   def _log_obs(self, info, reward, is_terminal):
-    events = set(info.get('events', ()))
-    room_coord = info.get('room_coord', (0, 0))
-    success = bool(info.get('victory', False))
+    event_counts = info.get('events', {}).get('counts', {})
+    room_coord = info.get('env', {}).get('room_coord', (0, 0))
+    inventory = info.get('inventory', {})
+    episode_info = info.get('episode', {})
+    success = bool(info.get('reward', {}).get('terminated', False))
     logs = {
         'log/reward_raw': np.float32(reward),
         'log/discount': np.float32(0.0 if is_terminal else 1.0),
-        'log/health': np.float32(info.get('health', 0)),
-        'log/gold': np.float32(info.get('gold', 0)),
-        'log/keys': np.float32(info.get('keys', 0)),
-        'log/step': np.float32(info.get('step', self._step)),
-        'log/dungeon_episode': np.float32(info.get('episode', self._episode)),
+        'log/health': np.float32(info.get('agent', {}).get('hp', 0)),
+        'log/gold': np.float32(inventory.get('gold', 0)),
+        'log/keys': np.float32(inventory.get('keys', 0)),
+        'log/step': np.float32(episode_info.get('step_count', self._step)),
+        'log/dungeon_episode': np.float32(episode_info.get('id', self._episode)),
         'log/room_x': np.float32(room_coord[0]),
         'log/room_y': np.float32(room_coord[1]),
         'log/visited_rooms': np.float32(len(self._visited_rooms)),
         'log/success': np.float32(success),
-        'log/has_key': np.float32(1.0 if info.get('has_key', False) else 0.0),
-        'log/no_progress_steps': np.float32(info.get('no_progress_steps', 0)),
+        'log/has_key': np.float32(1.0 if inventory.get('keys', 0) > 0 else 0.0),
+        'log/no_progress_steps': np.float32(episode_info.get('no_progress_steps', 0)),
         'log/noop_mapped': np.float32(1.0 if self._last_noop_mapped else 0.0),
     }
     logs.update({
-        f'log/{event}': np.float32(1.0 if event in events else 0.0)
+        f'log/{event}': np.float32(1.0 if int(event_counts.get(event, 0)) > 0 else 0.0)
         for event in self.LOG_EVENTS
     })
     return logs

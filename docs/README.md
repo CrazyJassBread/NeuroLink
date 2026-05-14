@@ -6,23 +6,28 @@ flat at the top level.
 ## Start Here
 
 - `guides/env-overview.md`
-  - Human-readable overview of `env_diy`, gameplay mechanics, map structure,
-    observations, rewards, and practical usage notes.
+  - Human-readable overview of `env_diy`, gameplay mechanics, pure-map schema,
+    and reward-module-based environment construction.
 - `reference/env-api.md`
-  - Canonical API reference for creating environments, calling `reset/step`,
-    and reading observation/info fields.
-- `guides/training.md`
-  - Training-focused guide for DreamerV3 and related training workflows.
+  - Canonical API reference for creating environments with `map_id/map_path`
+    plus `reward_id/reward_module`, and reading observation/info fields.
+- `guides/dreamer-training.md`
+  - DreamerV3 integration guide for the nested base info contract.
+- `guides/rl-training.md`
+  - RL-focused guide for direct `map + reward` training flows.
 
 ## Guides
 
 Guides explain how to understand or use the system at a higher level.
 
 - `guides/env-overview.md`
-  - Main environment guide for mechanics, rooms, exits, entities, rewards,
-    rendering, and examples.
-- `guides/training.md`
-  - Training and experiment guide for DreamerV3 and RL integration notes.
+  - Main environment guide for mechanics, rooms, exits, entities, pure-map
+    files, generic info/events, and reward modules.
+- `guides/dreamer-training.md`
+  - DreamerV3 adapter guide for current nested info and reward metadata.
+- `guides/rl-training.md`
+  - RL training guide for Gymnasium/SB3 usage, map selection, reward selection,
+    and evaluation workflow.
 
 ## Reference
 
@@ -32,11 +37,11 @@ Reference docs define interfaces, schemas, and precise behavior.
   - Gymnasium entrypoints, action/observation spaces, determinism, and info
     schema.
 - `reference/rewards.md`
-  - Reward implementation path, reward modes, and extension rules.
+  - `BaseReward`, builtin rewards, reward module contract, and extension rules.
 - `reference/tasks-and-validators.md`
-  - Task metadata flow, validator behavior, and how to add new task maps.
+  - Task API deprecation notice and replacement environment construction flow.
 - `reference/benchmark-v0.md`
-  - Current benchmark v0 scope, suite contents, registry API, and random eval.
+  - Current benchmark v0 scope, reward-driven task wiring, registry API, and random eval.
 
 ## Project
 

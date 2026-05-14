@@ -1,60 +1,84 @@
-# env_diy Reward
+# env_diy Rewards
 
-This file is the canonical reference for reward implementation and reward-mode
-behavior.
+## Core Files
 
-## Canonical Path
+- `env_diy/rewards/base.py`
+- `env_diy/rewards/sparse_exit.py`
+- `env_diy/rewards/collect_key.py`
+- `env_diy/rewards/collect_gold.py`
+- `env_diy/rewards/kill_monster.py`
+- `env_diy/rewards/exploration.py`
+- `env_diy/rewards/custom_template.py`
 
-There is exactly one real reward implementation:
+## BaseReward
 
-[`env_diy/rewards/reward_fn.py`](../env_diy/rewards/reward_fn.py)
+`BaseReward` is the unified reward core.
 
-## Entry Point
+Responsibilities:
+
+- maintain `prev_obs` / `prev_info`
+- extract stable reward signals from `obs/info/action`
+- compute weighted reward via `reward_weights`
+- support task-specific shaping via `extra_reward()`
+- support task-specific termination via `check_termination()`
+
+Common signals:
+
+- `step`
+- `hp_delta`
+- `hp_loss`
+- `gold_delta`
+- `keys_delta`
+- `monster_hit`
+- `monster_kill`
+- `door_opened`
+- `chest_opened`
+- `room_changed`
+- `exit_reached`
+- `death`
+- `invalid_action`
+
+## Reward Module Contract
+
+Each concrete reward module must expose:
 
 ```python
-from env_diy.rewards import RewardConfig, compute_reward
+def make_reward(**kwargs):
+    ...
+```
 
-reward, reward_terms = compute_reward(
-    prev_state,
-    next_state,
-    engine_result,
-    task_spec=task_config,
-    config=RewardConfig(reward_mode="default"),
+Typical custom reward:
+
+```python
+from env_diy.rewards.base import BaseReward
+
+
+class MyReward(BaseReward):
+    reward_name = "my_reward"
+    reward_weights = {
+        "step": -0.01,
+        "gold_delta": 1.0,
+        "keys_delta": 5.0,
+        "exit_reached": 50.0,
+        "death": -20.0,
+    }
+
+
+def make_reward(**kwargs):
+    return MyReward(**kwargs)
+```
+
+## Weight Overrides
+
+```python
+env = make_env(
+    map_id="dungeon",
+    reward_id="collect_key",
+    reward_kwargs={
+        "step": -0.01,
+        "keys_delta": 5.0,
+        "door_opened": 3.0,
+        "exit_reached": 20.0,
+    },
 )
 ```
-
-## Reward Modes
-
-- `default`
-  - default mode
-  - preserves existing reward behavior used by current training code
-- `event`
-  - returns named terms such as `picked_key`, `opened_door`, `picked_coin`,
-    `killed_monster`, `hit_trap`, `agent_dead`, `reached_goal`, `step_penalty`
-- `sparse`
-  - rewards only terminal success with the configured finish reward
-
-## Reward Reporting
-
-`reward_terms` is always returned as a dict. The wrapper stores:
-
-- the scalar reward in `info["reward"]["total"]`
-- the decomposition in `info["reward"]["terms"]`
-- the selected mode in `info["reward"]["mode"]`
-
-The scalar step reward should equal:
-
-```python
-sum(reward_terms.values())
-```
-
-There are no flat compatibility aliases such as `info["reward_terms"]`,
-`info["reward_breakdown"]`, or `info["legacy"]["reward_terms"]`.
-
-## Extending Reward
-
-To add a new event reward:
-
-1. Make sure the engine emits a stable event name.
-2. Update the centralized reward rule tables in `env_diy/rewards/reward_fn.py`.
-3. Add or extend a unit test in `tests/test_reward_fn.py`.

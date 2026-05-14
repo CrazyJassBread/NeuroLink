@@ -46,8 +46,9 @@ It currently includes:
 
 - a canonical Gymnasium wrapper under `env_diy.env.make_env(...)`
 - deterministic reset and action sampling support
-- centralized reward logic with `default`, `event`, and `sparse` modes
-- runtime task validation for current single-task maps
+- pure map JSON loading through `RoomManager`
+- task-agnostic base `info` and generic event emission
+- direct map-plus-reward environment construction
 - a lightweight benchmark layer under `env_diy/benchmark/`
 - random-policy smoke scripts and PPO integration under `rl/`
 
@@ -80,7 +81,8 @@ This is the next practical benchmark milestone.
 
 Required additions:
 
-- benchmark metadata is exposed consistently in env info and evaluation output
+- benchmark metadata is exposed consistently in benchmark outputs without
+  polluting base env info
 - evaluation writes a stable run artifact layout
 - benchmark version is included in benchmark outputs
 - README and benchmark docs clearly describe the benchmark entrypoints
@@ -124,12 +126,11 @@ env_diy/
   envs/               # deprecated compatibility namespace for older imports
   core/               # constants, runtime, collisions, observation/info helpers
   entities/           # entity state and monster behavior
-  maps/               # room/map schema, parser, validation, RoomManager
+  maps/               # room/map schema, path resolution, validation, RoomManager
   rendering/          # frame renderer and procedural sprites
   input/              # human-play input state helpers
   app/                # pygame interactive runner
-  rewards/            # centralized reward logic
-  tasks/              # task spec and validator layer
+  rewards/            # BaseReward, builtin rewards, reward loader
   benchmark/          # current benchmark registry, metrics, evaluation
 
 rl/
@@ -155,7 +156,6 @@ or from concrete subpackages such as:
 
 ```python
 from env_diy.maps import ...
-from env_diy.tasks import ...
 from env_diy.rewards import ...
 ```
 
@@ -198,7 +198,7 @@ Use this structure:
 - Does this change affect action semantics?
 - Does this change affect observation space?
 - Does this change affect reward values?
-- Does this change affect task success or failure conditions?
+- Does this change affect reward-driven termination conditions?
 - Does this change affect seed determinism?
 - Does this change affect official metrics?
 - Does this change require a benchmark version bump?
@@ -247,7 +247,6 @@ Prefer structured dataclasses and enums for:
 - entity types
 - item types
 - event types
-- reward modes
 - observation modes
 - benchmark splits
 
@@ -359,27 +358,18 @@ Observation-space changes are benchmark-breaking unless versioned.
 
 ## 11. Reward Policy
 
-Reward logic must be centralized.
+Task reward logic must remain external to the base environment.
 
 The canonical implementation lives under `env_diy/rewards/`.
 
-Current supported reward modes:
-
-- `default`
-- `event`
-- `sparse`
-
-Do not document `dense` or `potential` as currently supported behavior unless
-they are actually implemented. Those remain future extensions.
-
 Reward policy requirements:
 
-- scalar reward should be computed in one reward module
+- the base environment must not infer task type from map JSON, `map_id`, or
+  base `info`
 - reward calculation may depend on previous state, current state, events,
   task specification, and termination status
-- `info["reward_terms"]` should expose the decomposition
-- the scalar reward should equal `sum(reward_terms.values())` unless an
-  exception is explicitly documented
+- reward terms should live on the wrapper, not on base `info`
+- task success or task failure termination may be decided by a wrapper
 
 Possible reward components include:
 
@@ -403,9 +393,9 @@ Current stable top-level info fields should include:
 - `env`
 - `agent`
 - `inventory`
+- `entities`
 - `events`
-- `task`
-- `reward`
+- `terminal_reason`
 - `control`
 - `debug`
 
@@ -416,22 +406,15 @@ Current stable nested fields should include, when applicable:
 - `episode.seed`
 - `env.map_id`
 - `env.room_id`
+- `entities.monsters_remaining`
 - `events.records`
 - `events.counts`
-- `task.progress`
-- `task.success`
-- `task.failure`
-- `task.terminated_reason`
-- `reward.terms`
+- `terminal_reason`
 - `control.action_repeat`
 - `control.inner_steps`
 
-For benchmark work, add metadata incrementally by maturity stage:
-
-- benchmark v0 smoke: `task_id`, `map_id`, `seed`
-- benchmark v0.1 MVP: add `benchmark_version`, `suite_id`, `difficulty`
-- benchmark v0.2 reproducible: add `split`, `map_seed`, `task_seed` where
-  relevant
+Task metadata belongs in wrapper state and benchmark outputs, not in base env
+info.
 
 ## 13. Game Over and Episode End Policy
 
@@ -439,8 +422,7 @@ When player health reaches `0`:
 
 - the current `step()` must return `terminated=True`
 - the current `step()` must return `truncated=False`
-- `info["task"]["failure"]` must become `True`
-- `info["task"]["terminated_reason"]` should identify the terminal cause
+- `info["terminal_reason"]` should identify the terminal cause
 - the lethal step must return the terminal observation, not a hidden reset
   observation
 
@@ -459,9 +441,9 @@ Episode truncation should be used for:
 
 Episode termination should be used for:
 
-- task success
 - player death
-- explicit failure conditions
+- world completion
+- unrecoverable environment-level end states
 
 ## 14. Map and Geometry Policy
 
@@ -603,8 +585,7 @@ Validation should catch:
 - malformed schema
 - illegal HUD coordinates
 - missing required fields
-- invalid task references
-- incompatible task and map definitions
+- invalid geometry or world-state config
 
 Raise explicit exceptions instead of leaking generic parsing errors.
 
@@ -612,7 +593,6 @@ Preferred examples:
 
 ```python
 InvalidDungeonConfigError
-InvalidTaskSpecError
 InvalidBenchmarkSplitError
 InvalidEvaluationConfigError
 UnsolvableGeneratedMapError
@@ -627,8 +607,7 @@ Treat it as the combination of:
 ```text
 environment mechanics
 + map or map generator
-+ task specification
-+ reward mode
++ reward specification
 + observation mode
 + action mode
 + seed
@@ -676,11 +655,11 @@ A task specification should eventually capture:
 - success conditions
 - failure conditions
 - subgoal definitions where applicable
-- reward-mode compatibility
+- reward-function compatibility
 - metric requirements
 
-Current runtime validators may remain simpler than this model, but new work
-should move in this direction.
+Current task logic is already code-side and should stay separate from base map
+loading and base info generation.
 
 ### 19.3 Suite policy by phase
 

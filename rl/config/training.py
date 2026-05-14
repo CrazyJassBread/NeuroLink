@@ -10,22 +10,47 @@ OUTPUT_ROOT = PROJECT_ROOT / "rl" / "outputs"
 
 SUPPORTED_METHODS = ("ppo", "dqn", "a3c")
 
-TASK_ROOM_CONFIGS: dict[str, Path] = {
-    "prototype": PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "prototype" / "dungeon.json",
-    "combat_training": PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "combat_training" / "dungeon.json",
-    "evasion_training": PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "evasion_training" / "dungeon.json",
-    "chest_training": PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "chest_training" / "dungeon.json",
-    "avoid_traps": PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "avoid_traps" / "room_001.json",
-    "kill_monsters": PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "kill_monsters" / "room_001.json",
-    "key_door": PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "key_door" / "room_001.json",
+TASK_ROOM_CONFIGS: dict[str, tuple[Path, str | None, str | None]] = {
+    "prototype": (PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "prototype" / "dungeon.json", None, None),
+    "combat_training": (
+        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "combat_training" / "dungeon.json",
+        None,
+        None,
+    ),
+    "evasion_training": (
+        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "evasion_training" / "dungeon.json",
+        None,
+        None,
+    ),
+    "chest_training": (
+        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "chest_training" / "dungeon.json",
+        None,
+        None,
+    ),
+    "avoid_traps": (
+        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "avoid_traps" / "room_001.json",
+        "sparse_exit",
+        None,
+    ),
+    "kill_monsters": (
+        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "kill_monsters" / "room_001.json",
+        "kill_monster",
+        None,
+    ),
+    "key_door": (
+        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "key_door" / "room_001.json",
+        "collect_key",
+        None,
+    ),
 }
 
 
 @dataclass(frozen=True)
 class TrainingTarget:
     name: str
-    config_path: Path
-    task_id: str | None = None
+    map_path: Path
+    reward_id: str | None = None
+    reward_module: str | None = None
 
 
 @dataclass(frozen=True)
@@ -68,7 +93,7 @@ def resolve_task_rooms(
     if config_path is not None:
         path = _resolve_project_path(config_path)
         name = path.stem if path.name != "dungeon.json" else path.parent.name
-        return [TrainingTarget(name=name, config_path=path, task_id=None)]
+        return [TrainingTarget(name=name, map_path=path, reward_id=None, reward_module=None)]
 
     if not task_rooms:
         raise ValueError("at least one task room must be selected")
@@ -78,8 +103,15 @@ def resolve_task_rooms(
         if room_name not in TASK_ROOM_CONFIGS:
             allowed = ", ".join(sorted(TASK_ROOM_CONFIGS))
             raise ValueError(f"unsupported task room '{room_name}', allowed: {allowed}")
-        task_id = f"{room_name}_room_001" if room_name in {"avoid_traps", "kill_monsters", "key_door"} else None
-        targets.append(TrainingTarget(name=room_name, config_path=TASK_ROOM_CONFIGS[room_name], task_id=task_id))
+        room_config_path, reward_id, reward_module = TASK_ROOM_CONFIGS[room_name]
+        targets.append(
+            TrainingTarget(
+                name=room_name,
+                map_path=room_config_path,
+                reward_id=reward_id,
+                reward_module=reward_module,
+            )
+        )
     return targets
 
 

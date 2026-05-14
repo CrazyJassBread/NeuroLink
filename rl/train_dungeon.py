@@ -19,7 +19,7 @@ from rl.config import TASK_ROOM_CONFIGS, TrainingConfig
 
 DUNGEONS = {
     name: path
-    for name, path in TASK_ROOM_CONFIGS.items()
+    for name, (path, _reward_id, _reward_module) in TASK_ROOM_CONFIGS.items()
     if name in {"prototype", "combat_training", "evasion_training", "chest_training"}
 }
 CURRICULUM_ORDER = ("combat_training", "evasion_training", "chest_training")
