@@ -4,9 +4,7 @@ from collections import Counter, defaultdict
 from typing import Any
 
 
-EVENT_DETAIL_ALIASES: dict[str, tuple[str, ...]] = {
-    "monster_hit": ("monster_collision",),
-}
+EVENT_DETAIL_ALIASES: dict[str, tuple[str, ...]] = {}
 
 
 def normalize_event_records(

@@ -1,18 +1,6 @@
 {
-  "task_id": "key_door_001",
-  "task_type": "key_door",
-  "room_id": "room_001",
-  "objective": {
-    "type": "key_door",
-    "target_exit": "north_exit"
-  },
-  "reward": {
-    "finish": 10.0,
-    "step": -0.01,
-    "damage": -1.0,
-    "key": 0.5,
-    "door_unlock": 0.5
-  },
+  "id": "room_001",
+  "coord": [0, 0],
   "layout": [
     "..........",
     "########..",

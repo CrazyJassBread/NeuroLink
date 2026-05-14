@@ -7,10 +7,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 if __package__:
-    from rl.utils import make_env, observation_is_valid
+    from rl.utils import make_task_env, observation_is_valid
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from utils import make_env, observation_is_valid
+    from utils import make_task_env, observation_is_valid
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -26,9 +26,10 @@ class SingleTaskEpisodeResult:
     length: int
     terminated: bool
     truncated: bool
-    finish: bool
+    success: bool
+    failure: bool
+    terminated_reason: str | None
     task_id: str
-    task_type: str
 
 
 def parse_args() -> argparse.Namespace:
@@ -86,7 +87,8 @@ def run_single_task_training(
         raise ValueError("--action-repeat must be >= 1")
 
     config_path = resolve_single_task_config(task=task, room=room, config=config)
-    env = make_env(
+    env = make_task_env(
+        f"{task}_room_001",
         config_path=config_path,
         render_mode="rgb_array" if render else None,
         seed=seed,
@@ -102,9 +104,10 @@ def run_single_task_training(
             total_reward = 0.0
             terminated = False
             truncated = False
-            finish = False
-            task_id = env.task_config.task_id if env.task_config is not None else ""
-            task_type = env.task_config.task_type if env.task_config is not None else task
+            success = False
+            failure = False
+            terminated_reason = None
+            task_id = f"{task}_room_001"
             length = 0
 
             for step_index in range(max_steps):
@@ -117,8 +120,9 @@ def run_single_task_training(
                     )
                 total_reward += float(reward)
                 length = step_index + 1
-                task_info = info.get("task", {})
-                finish = finish or bool(task_info.get("success", False))
+                success = success or bool(getattr(env, "last_outcome", None) and env.last_outcome.success)
+                failure = failure or bool(getattr(env, "last_outcome", None) and env.last_outcome.failure)
+                terminated_reason = getattr(getattr(env, "last_outcome", None), "terminated_reason", None)
 
                 if render:
                     env.render()
@@ -131,29 +135,32 @@ def run_single_task_training(
                 length=length,
                 terminated=terminated,
                 truncated=truncated,
-                finish=finish,
+                success=success,
+                failure=failure,
+                terminated_reason=terminated_reason,
                 task_id=task_id,
-                task_type=task_type,
             )
             results.append(result)
             print(
-                "episode={episode} reward={reward:.3f} length={length} finish={finish} "
-                "terminated={terminated} truncated={truncated}".format(
+                "episode={episode} reward={reward:.3f} length={length} success={success} failure={failure} "
+                "terminated={terminated} truncated={truncated} reason={reason}".format(
                     episode=result.episode,
                     reward=result.total_reward,
                     length=result.length,
-                    finish=result.finish,
+                    success=result.success,
+                    failure=result.failure,
                     terminated=result.terminated,
                     truncated=result.truncated,
+                    reason=result.terminated_reason,
                 )
             )
     finally:
         env.close()
 
     _write_results_jsonl(output, results)
-    finish_rate = sum(1 for result in results if result.finish) / len(results)
+    success_rate = sum(1 for result in results if result.success) / len(results)
     mean_reward = sum(result.total_reward for result in results) / len(results)
-    print(f"finish_rate={finish_rate:.2f} mean_reward={mean_reward:.3f}")
+    print(f"success_rate={success_rate:.2f} mean_reward={mean_reward:.3f}")
     print(f"wrote {len(results)} episode summaries to {output}")
     return results
 

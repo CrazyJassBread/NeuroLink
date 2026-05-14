@@ -87,11 +87,7 @@ def run_random_training(
                     )
                 total_reward += float(reward)
                 length = step_index + 1
-                task_info = info["task"]
-                game_over = game_over or (
-                    bool(task_info.get("failure", False))
-                    and task_info.get("terminated_reason") == "agent_dead"
-                )
+                game_over = game_over or info.get("terminal_reason") == "agent_dead"
 
                 if render:
                     env.render()

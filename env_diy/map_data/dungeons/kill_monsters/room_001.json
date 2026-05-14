@@ -1,16 +1,6 @@
 {
-  "task_id": "kill_monsters_001",
-  "task_type": "kill_monsters",
-  "room_id": "room_001",
-  "objective": {
-    "type": "kill_monsters"
-  },
-  "reward": {
-    "finish": 10.0,
-    "step": -0.01,
-    "damage": -1.0,
-    "monster_kill": 0.5
-  },
+  "id": "room_001",
+  "coord": [0, 0],
   "layout": [
     "..........",
     "..........",

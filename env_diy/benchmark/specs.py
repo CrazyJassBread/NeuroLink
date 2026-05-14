@@ -11,10 +11,9 @@ class BenchmarkTaskSpec:
     map_id: str
     task_rooms: tuple[str, ...]
     config_path: Path
+    task_registry_id: str | None
     difficulty: str
     max_episode_steps: int
-    default_reward_mode: str
-    supported_reward_modes: tuple[str, ...]
     observation_mode: str
     action_mode: str
     success_condition: str

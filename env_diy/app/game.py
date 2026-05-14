@@ -58,10 +58,9 @@ class ZeldaLikeGame:
             if self.running and not game_over and not victory:
                 frame_action = self.input_state.resolve_action()
                 _, _, terminated, _, info = self.env.step(frame_action)
-                task_info = info["task"]
-                if task_info["failure"] and task_info["terminated_reason"] == "agent_dead":
+                if terminated and info.get("terminal_reason") == "agent_dead":
                     game_over = True
-                elif task_info["success"]:
+                elif terminated and info.get("terminal_reason") == "world_completed":
                     victory = True
 
             self._draw()

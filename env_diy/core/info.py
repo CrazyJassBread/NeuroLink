@@ -4,7 +4,6 @@ from typing import Any
 
 from .events import build_event_records, event_counts_to_flags, event_records_to_counts
 from .runtime import RuntimeState
-from .types import TaskValidationResult
 
 
 def build_info(
@@ -12,31 +11,17 @@ def build_info(
     *,
     events: list[str],
     event_details: list[dict[str, Any]],
-    reward_terms: dict[str, float] | None = None,
-    reward_total: float = 0.0,
-    reward_mode: str = "default",
     map_id: str | None = None,
     movement_pixels: int | float | None = None,
     action_repeat: int = 1,
     inner_steps: int = 1,
     engine_terminated: bool = False,
-    validator_result: TaskValidationResult | None = None,
+    terminal_reason: str | None = None,
     debug_message: str | None | object = ...,
 ) -> dict[str, Any]:
-    finish = "task_finished" in events
-    victory = "victory" in events or finish
     event_records = build_event_records(events, event_details)
     event_counts = event_records_to_counts(event_records)
     event_flags = event_counts_to_flags(event_counts)
-    validation = validator_result or TaskValidationResult(
-        success=victory,
-        failure="game_over" in events,
-        task_progress=1.0 if victory else 0.0,
-        terminated_reason="agent_dead" if "game_over" in events else ("reached_goal" if victory else None),
-        engine_done=engine_terminated,
-        validator_done=victory or "game_over" in events,
-        validator_matches_engine=engine_terminated == (victory or "game_over" in events),
-    )
     player_tile = runtime.snapshot().player_tile
     inventory = {
         "gold": runtime.player.gold,
@@ -49,25 +34,18 @@ def build_info(
     if debug_message is not ...:
         resolved_debug_message = debug_message
 
-    task_info = {
-        "success": bool(validation.success),
-        "failure": bool(validation.failure),
-        "progress": float(validation.task_progress),
-        "terminated_reason": validation.terminated_reason,
-        "subgoals": dict(validation.subgoal_status),
-        "completed_subgoals": [],
-        "failure_stage": None,
-    }
-    reward_info = {
-        "mode": reward_mode,
-        "total": float(reward_total),
-        "terms": dict(reward_terms or {}),
+    entities = {
+        "monsters_remaining": len(runtime.room.monsters),
+        "monster_ids": sorted(runtime.room.monsters),
+        "chests_remaining": sum(1 for chest in runtime.room.chests.values() if not chest.is_open),
+        "traps_active": sum(1 for trap in runtime.room.traps.values() if trap.is_active),
+        "buttons_pressed": sum(1 for button in runtime.room.buttons.values() if button.is_pressed),
+        "exits_open": sum(1 for exit_cfg in runtime.room.exits if runtime.room.exit_state(exit_cfg).opened),
+        "exits_total": len(runtime.room.exits),
     }
     debug_info = {
         "message": resolved_debug_message,
-        "engine_done": bool(validation.engine_done),
-        "validator_done": bool(validation.validator_done),
-        "validator_matches_engine": bool(validation.validator_matches_engine),
+        "engine_done": bool(engine_terminated),
     }
 
     info: dict[str, Any] = {
@@ -87,14 +65,14 @@ def build_info(
             "tile": player_tile,
         },
         "inventory": inventory,
+        "entities": entities,
         "events": {
             "records": event_records,
             "flags": event_flags,
             "counts": event_counts,
             "details": list(event_details),
         },
-        "task": task_info,
-        "reward": reward_info,
+        "terminal_reason": terminal_reason,
         "control": {
             "action_repeat": int(action_repeat),
             "inner_steps": int(inner_steps),

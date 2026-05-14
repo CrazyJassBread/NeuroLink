@@ -12,7 +12,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 from rl.config import TrainingConfig, TrainingTarget, resolve_task_rooms
-from rl.utils import EpisodeResult, make_env, write_episode_results_jsonl
+from rl.utils import EpisodeResult, make_env, make_task_env, write_episode_results_jsonl
 
 
 class EpisodeKeyAdapter(gym.Wrapper):
@@ -64,6 +64,7 @@ def train(config: TrainingConfig) -> list[EpisodeResult]:
             max_steps=config.max_steps,
             seed=target_seed,
             config=target.config_path,
+            task_id=target.task_id,
             render=config.render,
             action_repeat=config.action_repeat,
             output=target_output_dir / "eval.jsonl",
@@ -82,6 +83,7 @@ def run_ppo_training(
     max_steps: int,
     seed: int,
     config: Path | None = None,
+    task_id: str | None = None,
     render: bool = False,
     action_repeat: int = 1,
     output: Path = DEFAULT_OUTPUT_PATH,
@@ -105,7 +107,13 @@ def run_ppo_training(
             raise FileNotFoundError(f"--skip-train requested but model was not found: {model_path}")
         model = PPO.load(str(save_path), device=device)
     else:
-        raw_train_env = make_env(config_path=config, render_mode=None, seed=seed, action_repeat=action_repeat)
+        raw_train_env = _make_training_env(
+            config=config,
+            task_id=task_id,
+            render_mode=None,
+            seed=seed,
+            action_repeat=action_repeat,
+        )
         train_env = Monitor(EpisodeKeyAdapter(raw_train_env))
         policy_kwargs = {"features_extractor_class": DungeonFeaturesExtractor}
         model = PPO(
@@ -129,6 +137,7 @@ def run_ppo_training(
     results = _evaluate_ppo(
         model=model,
         config=config,
+        task_id=task_id,
         render=render,
         action_repeat=action_repeat,
         seed=seed,
@@ -144,14 +153,16 @@ def _evaluate_ppo(
     *,
     model: PPO,
     config: Path | None,
+    task_id: str | None,
     render: bool,
     action_repeat: int,
     seed: int,
     n_eval_episodes: int,
     max_steps: int,
 ) -> list[EpisodeResult]:
-    eval_env = make_env(
-        config_path=config,
+    eval_env = _make_training_env(
+        config=config,
+        task_id=task_id,
         render_mode="rgb_array" if render else None,
         seed=seed + 1,
         action_repeat=action_repeat,
@@ -171,10 +182,7 @@ def _evaluate_ppo(
                 obs, reward, terminated, truncated, info = eval_env.step(int(action))
                 total_reward += float(reward)
                 length = step_index + 1
-                task_info = info["task"]
-                game_over = game_over or (
-                    bool(task_info["failure"]) and task_info["terminated_reason"] == "agent_dead"
-                )
+                game_over = game_over or info.get("terminal_reason") == "agent_dead"
 
                 if render:
                     eval_env.render()
@@ -215,3 +223,26 @@ def _validate_training_config(config: TrainingConfig) -> None:
         raise ValueError("--max-steps must be >= 1")
     if config.action_repeat < 1:
         raise ValueError("--action-repeat must be >= 1")
+
+
+def _make_training_env(
+    *,
+    config: Path | None,
+    task_id: str | None,
+    render_mode: str | None,
+    seed: int,
+    action_repeat: int,
+):
+    if task_id is not None:
+        return make_task_env(
+            task_id,
+            render_mode=render_mode,
+            seed=seed,
+            action_repeat=action_repeat,
+        )
+    return make_env(
+        config_path=config,
+        render_mode=render_mode,
+        seed=seed,
+        action_repeat=action_repeat,
+    )

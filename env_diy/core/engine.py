@@ -36,7 +36,6 @@ from ..maps.rooms import (
     direction_from_entry_name,
     first_valid_entry_spawn_tile,
 )
-from ..maps.tasks import TaskConfig
 from .runtime import RuntimeState
 from .types import EngineStepResult
 
@@ -55,8 +54,7 @@ class DungeonEngine:
         self.map_id = self.room_manager.room_file.stem
         self.move_speed_px = max(1, int(move_speed_px))
         self.max_monster_slots = max(1, self.room_manager.max_monsters)
-        self.task_config: TaskConfig | None = self.room_manager.task_config
-        self.exit_task_enabled = self.task_config is not None or any(
+        self.world_completion_via_exit = any(
             exit_cfg.complete_task
             for room in self.room_manager.room_templates.values()
             for exit_cfg in room.exits
@@ -88,10 +86,10 @@ class DungeonEngine:
             result.move_direction = move_direction
             self._handle_move(move_direction, result)
         elif action == ACTION_A:
-            result.events.append("action_a")
+            result.events.append("action_interact")
             result.shield_active = self._handle_equipped_action(EquipmentSlot.A, result)
         elif action == ACTION_B:
-            result.events.append("action_b")
+            result.events.append("action_shield")
             result.shield_active = self._handle_equipped_action(EquipmentSlot.B, result)
         elif action == ACTION_NOOP:
             runtime.last_message = "WAIT"
@@ -105,21 +103,20 @@ class DungeonEngine:
             self._update_monsters(result)
         if runtime.player.health > 0:
             self._resolve_monster_contact(result, shield_active=result.shield_active)
-        if runtime.player.health > 0:
-            result.task_finished_now = self._resolve_task_objective(result)
 
         if runtime.player.health <= 0:
             result.terminated = True
             runtime.pending_reset = True
             runtime.last_message = "GAME OVER"
-            result.events.append("game_over")
-        elif result.task_finished_now or "victory" in result.events or (not self.exit_task_enabled and self._all_chests_opened()):
+            result.events.append("agent_dead")
+            result.terminated_reason = "agent_dead"
+        elif "environment_completed" in result.events or (not self.world_completion_via_exit and self._all_chests_opened()):
             result.terminated = True
             runtime.pending_reset = True
-            runtime.last_message = "VICTORY"
-            if "victory" not in result.events:
-                result.events.append("victory")
-                result.grant_victory_reward = True
+            runtime.last_message = "WORLD COMPLETE"
+            if "environment_completed" not in result.events:
+                result.events.append("environment_completed")
+            result.terminated_reason = "world_completed"
 
         if self._step_made_progress(result.progress_start_pos, result.progress_start_room_id, result.events):
             runtime.no_progress_steps = 0
@@ -153,7 +150,6 @@ class DungeonEngine:
             pending_reset=False,
             last_message=MESSAGE_DEFAULT,
             no_progress_steps=0,
-            task_finished=False,
             seed=self.seed,
         )
 
@@ -186,12 +182,20 @@ class DungeonEngine:
 
         runtime.player.position_px = current_position
         if runtime.player.position_px == previous_position:
+            blocked_reason = "bounds"
             if blocked_position is not None and not self._within_map_bounds(blocked_position):
                 runtime.last_message = "EDGE BLOCKED"
-                result.events.append("blocked_bounds")
             else:
                 runtime.last_message = "BLOCKED"
-                result.events.append("blocked_wall")
+                blocked_reason = "wall"
+            result.events.append("action_blocked")
+            result.event_details.append(
+                {
+                    "type": "action_blocked",
+                    "reason": blocked_reason,
+                    "direction": direction,
+                }
+            )
             return
 
         runtime.last_message = f"MOVE {direction.upper()}"
@@ -208,10 +212,18 @@ class DungeonEngine:
 
     def _apply_exit(self, exit_config: ExitConfig, result: EngineStepResult) -> None:
         runtime = self.runtime
-        allowed, blocked_event = self._can_use_exit(exit_config)
+        allowed, blocked_reason = self._can_use_exit(exit_config)
         if not allowed:
             runtime.last_message = exit_config.blocked_message
-            result.events.append(blocked_event)
+            result.events.append("action_blocked")
+            result.event_details.append(
+                {
+                    "type": "action_blocked",
+                    "reason": blocked_reason,
+                    "exit_id": exit_config.exit_id,
+                    "direction": exit_config.direction,
+                }
+            )
             return
 
         from_room_id = runtime.room.room_id
@@ -220,16 +232,16 @@ class DungeonEngine:
             key_consumed = False
             if bool(exit_config.requires.get("consume_key", False)):
                 runtime.player.keys -= int(exit_config.requires.get("key_count", 1))
-                result.events.append("used_key")
                 key_consumed = True
             exit_state.unlocked = True
             exit_state.opened = True
-            result.events.append("door_unlocked")
+            result.events.append("door_opened")
             result.event_details.append(
                 {
-                    "type": "door_unlocked",
+                    "type": "door_opened",
                     "room_id": from_room_id,
                     "direction": exit_config.direction,
+                    "exit_id": exit_config.exit_id,
                     "key_consumed": key_consumed,
                 }
             )
@@ -241,21 +253,21 @@ class DungeonEngine:
         runtime.room = target_room
         runtime.player.position_px = tile_to_top_left_px(spawn_tile)
         runtime.last_message = exit_config.success_message
-        result.events.append("room_transition")
+        result.events.append("exit_reached")
+        result.events.append("room_changed")
         result.event_details.append(
             {
-                "type": "room_transition",
+                "type": "exit_reached",
                 "from_room": from_room_id,
                 "to_room": runtime.room.room_id,
                 "exit_id": exit_config.exit_id,
-                "exit_direction": exit_config.direction,
+                "direction": exit_config.direction,
                 "target_entry": exit_config.target_entry,
                 "spawn_px": [runtime.player.position_px[0], runtime.player.position_px[1]],
             }
         )
-        if exit_config.complete_task and self.task_config is None:
-            result.events.append("victory")
-            result.grant_victory_reward = True
+        if exit_config.complete_task:
+            result.events.append("environment_completed")
 
     def _can_use_exit(self, exit_config: ExitConfig) -> tuple[bool, str]:
         runtime = self.runtime
@@ -266,7 +278,7 @@ class DungeonEngine:
                 return True, ""
             required_keys = int(exit_config.requires.get("key_count", 1))
             if runtime.player.keys < required_keys:
-                return False, "blocked_locked"
+                return False, "locked"
             return True, ""
 
         button_id = exit_config.requires.get("button_pressed")
@@ -301,11 +313,10 @@ class DungeonEngine:
             return False
         if slot == EquipmentSlot.B and tool == ToolType.SHIELD.value:
             runtime.last_message = "SHIELD"
-            result.events.append("shield")
             return True
 
         runtime.last_message = f"{slot.value} NO EFFECT"
-        result.events.append(f"action_{slot.value.lower()}_empty")
+        result.events.append("action_no_effect")
         return False
 
     def _handle_action_a(self, result: EngineStepResult) -> None:
@@ -316,7 +327,7 @@ class DungeonEngine:
             if not chest.is_open and is_adjacent(player_tile, chest.pos):
                 chest.is_open = True
                 self._apply_loot(chest.loot, result)
-                result.events.append("opened_chest")
+                result.events.append("chest_opened")
                 return
 
         for npc in runtime.room.npcs.values():
@@ -329,7 +340,7 @@ class DungeonEngine:
             return
 
         runtime.last_message = "A NO EFFECT"
-        result.events.append("action_a_empty")
+        result.events.append("action_no_effect")
 
     def _handle_monster_attack(self, result: EngineStepResult) -> bool:
         runtime = self.runtime
@@ -348,6 +359,7 @@ class DungeonEngine:
                 return True
 
             runtime.last_message = f"ATTACK HIT ({monster.hp}HP LEFT)"
+            result.events.append("action_attack")
             result.events.append("monster_damaged")
             result.event_details.append(
                 {
@@ -369,25 +381,25 @@ class DungeonEngine:
         if loot_kind == "key":
             runtime.player.keys += max(1, amount)
             runtime.last_message = "GOT KEY"
-            result.events.append("got_key")
+            result.events.append("key_collected")
             return
         if loot_kind == "heal":
             healed = min(runtime.player.max_health, runtime.player.health + max(1, amount))
             runtime.player.health = healed
             runtime.last_message = "HEALED"
-            result.events.append("healed")
+            result.events.append("agent_healed")
             return
         if loot_kind == "item":
             item_name = str(loot.get("item_id", "item"))
             if item_name not in runtime.player.items:
                 runtime.player.items.append(item_name)
             runtime.last_message = f"GOT {item_name}".upper()[:24]
-            result.events.append("got_item")
+            result.events.append("item_collected")
             return
 
         runtime.player.gold += max(1, amount)
         runtime.last_message = "GOT GOLD"
-        result.events.append("got_gold")
+        result.events.append("gold_collected")
 
     def _resolve_tile_effects(self, result: EngineStepResult) -> None:
         runtime = self.runtime
@@ -397,7 +409,7 @@ class DungeonEngine:
         if button is not None and not button.is_pressed:
             button.is_pressed = True
             runtime.last_message = button.message.upper()[:24]
-            result.events.append("pressed_button")
+            result.events.append("button_pressed")
 
         trap = runtime.room.trap_at(player_tile)
         if trap is not None:
@@ -406,7 +418,16 @@ class DungeonEngine:
             if runtime.player.health > 0:
                 runtime.player.position_px = tile_to_top_left_px(runtime.room.spawns[respawn_name])
             runtime.last_message = f"TRAP -{trap.damage}HP"
-            result.events.append("trap_damage")
+            result.events.append("trap_triggered")
+            result.events.append("agent_damaged")
+            result.event_details.append(
+                {
+                    "type": "trap_triggered",
+                    "trap_id": trap.trap_id,
+                    "damage": trap.damage,
+                    "respawn_to": respawn_name,
+                }
+            )
             if trap.single_use:
                 trap.is_active = False
 
@@ -421,9 +442,6 @@ class DungeonEngine:
             occupied_tiles.discard(monster.tile_pos)
             update_monster(monster, runtime.player.position_px, runtime.room.walls, occupied_tiles)
             occupied_tiles.add(monster.tile_pos)
-        if runtime.room.monsters:
-            result.events.append("monsters_updated")
-
     def _resolve_monster_contact(self, result: EngineStepResult, *, shield_active: bool) -> None:
         runtime = self.runtime
         monster_to_remove: str | None = None
@@ -457,10 +475,10 @@ class DungeonEngine:
                     )
                 else:
                     runtime.last_message = f"SHIELD BLOCK ({monster.hp}HP LEFT)"
-                    result.events.append("shield_block")
+                    result.events.append("action_shield")
                     result.event_details.append(
                         {
-                            "type": "shield_block",
+                            "type": "action_shield",
                             "monster_id": monster.monster_id,
                             "damage_prevented": monster.damage,
                             "monster_hp_remaining": monster.hp,
@@ -491,11 +509,11 @@ class DungeonEngine:
                 )
             else:
                 runtime.last_message = f"HIT -{monster.damage}HP ({monster.hp}HP LEFT)"
-                result.events.append("monster_hit")
+                result.events.append("agent_damaged")
                 result.events.append("monster_damaged")
                 result.event_details.append(
                     {
-                        "type": "monster_collision",
+                        "type": "agent_damaged",
                         "monster_id": monster.monster_id,
                         "damage": monster.damage,
                         "monster_hp_remaining": monster.hp,
@@ -546,10 +564,10 @@ class DungeonEngine:
             exit_state.unlocked = True
             exit_state.opened = True
             runtime.last_message = "ALL MONSTERS DEFEATED - DOOR OPENED"
-            result.events.append("door_unlocked")
+            result.events.append("door_opened")
             result.event_details.append(
                 {
-                    "type": "door_unlocked",
+                    "type": "door_opened",
                     "exit_id": exit_cfg.exit_id,
                     "trigger": "all_monsters_defeated",
                 }
@@ -567,68 +585,20 @@ class DungeonEngine:
         if start_room_id is not None and runtime.room.room_id != start_room_id:
             return True
         progress_events = {
-            "door_unlocked",
-            "got_key",
-            "got_gold",
-            "got_item",
-            "healed",
+            "door_opened",
+            "key_collected",
+            "gold_collected",
+            "item_collected",
+            "agent_healed",
             "monster_killed",
-            "opened_chest",
-            "pressed_button",
-            "room_transition",
-            "task_finished",
+            "chest_opened",
+            "button_pressed",
+            "room_changed",
+            "exit_reached",
             "talked_npc",
-            "victory",
+            "environment_completed",
         }
         return any(event in progress_events for event in events)
-
-    def _resolve_task_objective(self, result: EngineStepResult) -> bool:
-        runtime = self.runtime
-        if self.task_config is None or runtime.task_finished:
-            return False
-
-        objective = self.task_config.objective
-        objective_type = objective.objective_type
-        finished = False
-        if objective_type in {"reach_exit", "reach_exit_without_trap_damage", "key_door"}:
-            finished = self._transitioned_through_target_exit(result.event_details, objective.target_exit)
-            if objective_type == "reach_exit_without_trap_damage" and "trap_damage" in result.events:
-                finished = False
-        elif objective_type == "kill_monsters":
-            if objective.target_monsters:
-                finished = all(monster_id not in runtime.room.monsters for monster_id in objective.target_monsters)
-            else:
-                finished = not runtime.room.monsters
-
-        if not finished:
-            return False
-
-        runtime.task_finished = True
-        result.events.append("task_finished")
-        if "victory" not in result.events:
-            result.events.append("victory")
-        result.event_details.append(
-            {
-                "type": "task_finished",
-                "task_id": self.task_config.task_id,
-                "task_type": self.task_config.task_type,
-                "objective_type": objective_type,
-                "reward": float(self.task_config.reward.finish),
-            }
-        )
-        return True
-
-    @staticmethod
-    def _transitioned_through_target_exit(
-        event_details: list[dict],
-        target_exit: str | None,
-    ) -> bool:
-        for detail in event_details:
-            if detail.get("type") != "room_transition":
-                continue
-            if target_exit is None or detail.get("exit_id") == target_exit:
-                return True
-        return False
 
     def _all_chests_opened(self) -> bool:
         total_chests = 0

@@ -18,6 +18,7 @@ The script:
 - validates observations against `env.observation_space`
 - records episode reward, length, termination flags, and whether the agent died
 - writes JSONL summaries to `rl/outputs/random_training.jsonl` by default
+- uses Base env reward directly; task-specific reward requires an external wrapper
 
 Use a custom dungeon config:
 
@@ -41,7 +42,7 @@ Use `--action-repeat` in RL scripts to configure the env's native action repeat:
 python rl/train_random.py --episodes 5 --max-steps 400 --action-repeat 4 --seed 0
 ```
 
-`max_steps` is the outer agent step count. Actual environment ticks are approximately `max_steps * action_repeat`, unless `terminated` or `truncated` stops the repeat early. Rewards from inner ticks are summed and the final `info` includes `control.action_repeat`, `control.inner_steps`, `reward.terms`, and `events.counts`.
+`max_steps` is the outer agent step count. Actual environment ticks are approximately `max_steps * action_repeat`, unless `terminated` or `truncated` stops the repeat early. The final `info` includes `control.action_repeat`, `control.inner_steps`, and `events.counts`.
 
 Recommended starting point:
 
@@ -69,8 +70,9 @@ The smoke tests cover env creation, reset/step return shapes, sampled actions, o
 ## Single-task Rooms
 
 Use `train_single_task.py` to verify a focused challenge room can be loaded and
-stepped by RL-style code. The script uses a random policy and reports finish
-rate; it is a smoke test, not a training-quality baseline.
+stepped by RL-style code. The script uses a random policy and explicit
+`TaskSpec` + `RewardWrapper` wiring; it is a smoke test, not a training-quality
+baseline.
 
 ```bash
 source .venv/bin/activate
@@ -92,18 +94,18 @@ python rl/train_single_task.py --task avoid_traps --room room_001 --episodes 5
 python rl/train_single_task.py --config env_diy/map_data/dungeons/key_door/room_001.json --episodes 2
 ```
 
-Episode logs include reward, length, `finish`, `terminated`, and `truncated`.
+Episode logs include reward, length, `success`, `failure`, `terminated`, and `truncated`.
 JSONL output defaults to `rl/outputs/single_task_training.jsonl`.
 
 Canonical env behavior notes:
 
 - `make_env(api="gym")` is the recommended entrypoint.
+- task-specific training should use an explicit `RewardWrapper` around `make_env(...)`.
 - canonical Gym wrapper defaults to `auto_reset_on_step=False`.
 - compatibility `env_diy.env.DungeonEnv` keeps auto-reset behavior.
 - `env_diy.envs.DungeonEnv` remains as a deprecated compatibility namespace only.
-- default `reward_mode` is `default`; `event` and `sparse` are optional modes.
-- `info["reward"]["terms"]` is always populated and `info["reward"]["total"]` matches the scalar reward.
-- validator/task status lives under `info["task"]` and `info["debug"]`.
+- Base env `info` is task-agnostic and does not include `info["task"]` or `info["reward"]`.
+- task outcome and reward terms live on the wrapper, for example `env.episode_outcome` and `env.last_reward_terms`.
 - `info` now only uses the clean nested schema; there is no `info["legacy"]` namespace.
 
 ## Unified Classic RL Entry

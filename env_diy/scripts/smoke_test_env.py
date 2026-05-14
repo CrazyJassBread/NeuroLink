@@ -25,8 +25,6 @@ def main() -> int:
     for index, config_path in enumerate(CONFIGS):
         env = make_env(config_path, api="gym")
         total_reward = 0.0
-        success = False
-        failure = False
         terminated_reason = None
         try:
             obs, info = env.reset(seed=index)
@@ -37,15 +35,11 @@ def main() -> int:
                 if math.isnan(float(reward)):
                     raise RuntimeError("reward is NaN")
                 total_reward += float(reward)
-                task_info = info["task"]
-                success = bool(task_info.get("success", False))
-                failure = bool(task_info.get("failure", False))
-                terminated_reason = task_info.get("terminated_reason")
+                terminated_reason = info.get("terminal_reason")
                 if terminated or truncated:
                     break
             print(
-                f"{config_path.name}: return={total_reward:.3f} success={success} "
-                f"failure={failure} terminated_reason={terminated_reason}"
+                f"{config_path.name}: return={total_reward:.3f} terminated_reason={terminated_reason}"
             )
         except Exception as exc:  # noqa: BLE001
             failures.append(f"{config_path}: {exc}")

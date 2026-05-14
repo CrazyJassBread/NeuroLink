@@ -8,7 +8,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from env_diy.env import make_env
 
-env = make_env("env_diy/map_data/dungeons/prototype/dungeon.json", api="gym")
+# env = make_env("env_diy/map_data/dungeons/prototype/dungeon.json", api="gym")
+env = make_env("env_diy/map_data/dungeons/avoid_traps/room_001.json", api = "gym")
 obs, info = env.reset(seed=0)
 
 for i in range(100):

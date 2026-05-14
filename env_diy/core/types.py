@@ -15,7 +15,6 @@ class RuntimeSnapshot:
     keys: int
     items: tuple[str, ...]
     no_progress_steps: int
-    task_finished: bool
     step_count: int
     episode_id: int
     seed: int | None
@@ -37,24 +36,11 @@ class EngineStepResult:
     auto_reset: bool = False
     shield_active: bool = False
     move_direction: str | None = None
-    task_finished_now: bool = False
-    grant_victory_reward: bool = False
     progress_start_pos: tuple[float, float] | None = None
     progress_start_room_id: str | None = None
     last_message: str = ""
+    terminated_reason: str | None = None
 
 
 RewardBreakdown = dict[str, float]
 RewardTerms = dict[str, float]
-
-
-@dataclass(frozen=True)
-class TaskValidationResult:
-    success: bool = False
-    failure: bool = False
-    task_progress: float = 0.0
-    terminated_reason: str | None = None
-    subgoal_status: dict[str, Any] = field(default_factory=dict)
-    engine_done: bool = False
-    validator_done: bool = False
-    validator_matches_engine: bool = True

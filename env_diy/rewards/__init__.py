@@ -1,15 +1,11 @@
-from .reward_fn import (
-    DEFAULT_REWARD_MODE,
-    SUPPORTED_REWARD_MODES,
-    RewardConfig,
-    compute_reward,
-    normalize_reward_mode,
-)
+from .reward_fn import AvoidTrapReward, EventDrivenRewardFn, KeyDoorReward, KillMonsterReward
+from .wrapper import EpisodeOutcome, RewardWrapper
 
 __all__ = [
-    "DEFAULT_REWARD_MODE",
-    "SUPPORTED_REWARD_MODES",
-    "RewardConfig",
-    "compute_reward",
-    "normalize_reward_mode",
+    "AvoidTrapReward",
+    "EpisodeOutcome",
+    "EventDrivenRewardFn",
+    "KeyDoorReward",
+    "KillMonsterReward",
+    "RewardWrapper",
 ]

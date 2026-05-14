@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ..rewards import normalize_reward_mode
 from .metrics import summarize_suite_metrics, summarize_task_metrics
 from .registry import get_task_spec, list_tasks, make_benchmark_env
 
@@ -16,12 +15,10 @@ def evaluate_suite(
     policy: str,
     episodes: int,
     seed: int,
-    reward_mode: str | None = None,
     json_output: Path | None = None,
 ) -> dict[str, Any]:
     if policy != "random":
         raise ValueError("only random policy is supported in benchmark v0")
-    resolved_reward_mode = None if reward_mode is None else normalize_reward_mode(reward_mode)
 
     task_payloads: list[dict[str, Any]] = []
     for offset, task in enumerate(list_tasks(suite_id)):
@@ -30,7 +27,6 @@ def evaluate_suite(
             suite_id,
             task.task_id,
             seed=task_seed,
-            reward_mode=resolved_reward_mode,
         )
         try:
             episodes_payload = [_run_random_episode(env, task, task_seed + index) for index in range(episodes)]
@@ -51,7 +47,6 @@ def evaluate_suite(
         "policy": policy,
         "episodes": episodes,
         "seed": seed,
-        "reward_mode": resolved_reward_mode or get_task_spec(suite_id, list_tasks(suite_id)[0].task_id).default_reward_mode,
         "tasks": task_payloads,
         "aggregate": aggregate,
     }
@@ -75,20 +70,20 @@ def _run_random_episode(env, task, seed: int) -> dict[str, Any]:
         obs, reward, terminated, truncated, last_info = env.step(action)
         total_reward += float(reward)
         length = step_index + 1
-        reward_terms = last_info.get("reward", {}).get("terms", {})
+        reward_terms = dict(getattr(env, "last_reward_terms", {}))
         for key, value in reward_terms.items():
             reward_terms_total[key] = reward_terms_total.get(key, 0.0) + float(value)
         if terminated or truncated:
             break
-    task_info = last_info.get("task", {})
+    outcome = getattr(env, "episode_outcome", None)
     return {
         "return": total_reward,
         "length": length,
-        "success": bool(task_info.get("success", False)),
-        "failure": bool(task_info.get("failure", False)),
+        "success": bool(getattr(outcome, "success", False)),
+        "failure": bool(getattr(outcome, "failure", False)),
         "truncated": bool(truncated),
-        "task_progress": float(task_info.get("progress", 0.0)),
-        "terminated_reason": task_info.get("terminated_reason"),
+        "task_progress": float(getattr(outcome, "progress", 0.0) or 0.0),
+        "terminated_reason": getattr(outcome, "terminated_reason", last_info.get("terminal_reason")),
         "reward_terms": reward_terms_total,
     }
 
@@ -101,8 +96,7 @@ def _task_to_payload(task) -> dict[str, Any]:
         "task_rooms": list(task.task_rooms),
         "difficulty": task.difficulty,
         "max_episode_steps": task.max_episode_steps,
-        "default_reward_mode": task.default_reward_mode,
-        "supported_reward_modes": list(task.supported_reward_modes),
+        "task_registry_id": task.task_registry_id,
         "observation_mode": task.observation_mode,
         "action_mode": task.action_mode,
         "success_condition": task.success_condition,
@@ -116,7 +110,6 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--policy", default="random")
     parser.add_argument("--episodes", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--reward-mode", default=None)
     parser.add_argument("--json-output", type=Path, default=None)
     return parser.parse_args()
 
@@ -128,7 +121,6 @@ def main() -> int:
         policy=args.policy,
         episodes=args.episodes,
         seed=args.seed,
-        reward_mode=args.reward_mode,
         json_output=args.json_output,
     )
     print(json.dumps(result, indent=2, sort_keys=True))

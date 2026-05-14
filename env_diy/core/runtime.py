@@ -19,7 +19,6 @@ class RuntimeState:
     pending_reset: bool = False
     last_message: str = MESSAGE_DEFAULT
     no_progress_steps: int = 0
-    task_finished: bool = False
     seed: int | None = None
 
     def snapshot(self) -> RuntimeSnapshot:
@@ -33,7 +32,6 @@ class RuntimeState:
             keys=self.player.keys,
             items=tuple(self.player.items),
             no_progress_steps=self.no_progress_steps,
-            task_finished=self.task_finished,
             step_count=self.step_count,
             episode_id=self.episode,
             seed=self.seed,

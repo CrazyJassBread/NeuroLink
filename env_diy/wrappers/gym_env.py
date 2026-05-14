@@ -21,16 +21,12 @@ from ..core.constants import (
 from ..core.engine import DungeonEngine
 from ..core.info import build_info
 from ..core.observation import build_observation
-from ..core.types import RewardTerms, StuckPenaltyConfig, TaskValidationResult
 from ..entities import tile_from_position_px
 from ..rendering.renderer import render_frame
-from ..rewards.reward_fn import RewardConfig, compute_reward
-from ..tasks.task_spec import TaskSpec
-from ..tasks.validators import validate_task
 from .registry import register_wrapper
 
 
-class _BaseDungeonEnv(gym.Env):
+class BaseGameEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"], "render_fps": TARGET_FPS}
 
     def __init__(
@@ -39,12 +35,8 @@ class _BaseDungeonEnv(gym.Env):
         render_mode: str | None = None,
         auto_reset_on_step: bool = True,
         move_speed_px: float = 1.0,
-        stuck_penalty_enabled: bool = False,
-        stuck_penalty_steps: int = 30,
-        stuck_penalty: float = -0.01,
         action_repeat: int = 1,
-        reward_mode: str = "default",
-        use_validator_termination: bool = False,
+        **_: Any,
     ):
         super().__init__()
         if action_repeat < 1:
@@ -53,18 +45,7 @@ class _BaseDungeonEnv(gym.Env):
         self.auto_reset_on_step = bool(auto_reset_on_step)
         self.action_repeat = int(action_repeat)
         self.native_action_repeat = self.action_repeat
-        self.use_validator_termination = bool(use_validator_termination)
-        self.stuck_penalty_config = StuckPenaltyConfig(
-            enabled=bool(stuck_penalty_enabled),
-            steps=max(1, int(stuck_penalty_steps)),
-            reward=float(stuck_penalty),
-        )
-        self.reward_config = RewardConfig(
-            reward_mode=str(reward_mode),
-            stuck_penalty=self.stuck_penalty_config,
-        )
         self.engine = DungeonEngine(room_file, move_speed_px=move_speed_px)
-        self.task_spec = TaskSpec.from_task_config(self.engine.task_config)
 
         self.action_space = spaces.Discrete(len(ACTION_LABELS))
         self.observation_space = spaces.Dict(
@@ -130,10 +111,8 @@ class _BaseDungeonEnv(gym.Env):
         info = self._get_info(
             events=[],
             event_details=[],
-            reward_total=0.0,
-            reward_terms={},
-            validator_result=TaskValidationResult(),
             engine_terminated=False,
+            terminal_reason=None,
             inner_steps=0,
             debug_message=None,
         )
@@ -147,26 +126,13 @@ class _BaseDungeonEnv(gym.Env):
         elif self.engine.runtime.pending_reset:
             raise RuntimeError("Episode terminated. Call reset() before step().")
 
-        total_reward = 0.0
-        reward_terms: RewardTerms = {}
         merged_events: list[str] = []
         merged_event_details: list[dict[str, Any]] = []
         engine_result = None
         inner_steps = 0
 
         for _ in range(self.action_repeat):
-            prev_state = self.engine.runtime.snapshot()
             result = self.engine.step(action)
-            next_state = self.engine.runtime.snapshot()
-            reward, inner_terms = compute_reward(
-                prev_state,
-                next_state,
-                result,
-                task_spec=self.engine.task_config,
-                config=self.reward_config,
-            )
-            total_reward += reward
-            _merge_reward_terms(reward_terms, inner_terms)
             merged_events.extend(result.events)
             merged_event_details.extend(result.event_details)
             engine_result = result
@@ -175,28 +141,16 @@ class _BaseDungeonEnv(gym.Env):
                 break
 
         assert engine_result is not None
-        validator_result = validate_task(
-            self.task_spec,
-            self.engine.runtime,
-            merged_events,
-            merged_event_details,
-            engine_done=engine_result.terminated,
-        )
-        terminated = engine_result.terminated
-        if self.use_validator_termination and validator_result.validator_matches_engine:
-            terminated = validator_result.validator_done
 
         observation = self._get_obs()
         info = self._get_info(
             events=merged_events,
             event_details=merged_event_details,
-            reward_total=total_reward,
-            reward_terms=reward_terms,
-            validator_result=validator_result,
             engine_terminated=engine_result.terminated,
+            terminal_reason=engine_result.terminated_reason,
             inner_steps=inner_steps,
         )
-        return observation, total_reward, terminated, engine_result.truncated, info
+        return observation, 0.0, engine_result.terminated, engine_result.truncated, info
 
     def render(self) -> np.ndarray:
         return render_frame(self.engine.runtime.room, self.engine.runtime.player)
@@ -219,10 +173,8 @@ class _BaseDungeonEnv(gym.Env):
         *,
         events: list[str],
         event_details: list[dict[str, Any]],
-        reward_total: float,
-        reward_terms: RewardTerms,
-        validator_result: TaskValidationResult,
         engine_terminated: bool,
+        terminal_reason: str | None,
         inner_steps: int = 1,
         debug_message: str | None | object = ...,
     ) -> dict[str, Any]:
@@ -230,15 +182,12 @@ class _BaseDungeonEnv(gym.Env):
             self.engine.runtime,
             events=events,
             event_details=event_details,
-            reward_total=reward_total,
-            reward_terms=reward_terms,
-            reward_mode=self.reward_config.reward_mode,
             map_id=self.engine.map_id,
             movement_pixels=self.engine.move_speed_px,
             action_repeat=self.action_repeat,
             inner_steps=inner_steps,
             engine_terminated=engine_terminated,
-            validator_result=validator_result,
+            terminal_reason=terminal_reason,
             debug_message=debug_message,
         )
 
@@ -247,7 +196,7 @@ class _BaseDungeonEnv(gym.Env):
         return tile_from_position_px(player.position_px, player.size_px)
 
 
-class DungeonEnv(_BaseDungeonEnv):
+class DungeonEnv(BaseGameEnv):
     """Compatibility wrapper.
 
     This class preserves convenience attributes and auto-reset behavior for existing scripts.
@@ -260,33 +209,21 @@ class DungeonEnv(_BaseDungeonEnv):
         render_mode: str | None = None,
         auto_reset_on_step: bool = True,
         move_speed_px: float = 1.0,
-        stuck_penalty_enabled: bool = False,
-        stuck_penalty_steps: int = 30,
-        stuck_penalty: float = -0.01,
         action_repeat: int = 1,
-        reward_mode: str = "default",
-        use_validator_termination: bool = False,
+        **kwargs: Any,
     ):
         super().__init__(
             room_file,
             render_mode=render_mode,
             auto_reset_on_step=auto_reset_on_step,
             move_speed_px=move_speed_px,
-            stuck_penalty_enabled=stuck_penalty_enabled,
-            stuck_penalty_steps=stuck_penalty_steps,
-            stuck_penalty=stuck_penalty,
             action_repeat=action_repeat,
-            reward_mode=reward_mode,
-            use_validator_termination=use_validator_termination,
+            **kwargs,
         )
 
     @property
     def room_manager(self):
         return self.engine.room_manager
-
-    @property
-    def task_config(self):
-        return self.engine.task_config
 
     @property
     def max_monster_slots(self) -> int:
@@ -346,30 +283,17 @@ class GymDungeonEnv(DungeonEnv):
         render_mode: str | None = None,
         auto_reset_on_step: bool = False,
         move_speed_px: float = 1.0,
-        stuck_penalty_enabled: bool = False,
-        stuck_penalty_steps: int = 30,
-        stuck_penalty: float = -0.01,
         action_repeat: int = 1,
-        reward_mode: str = "default",
-        use_validator_termination: bool = True,
+        **kwargs: Any,
     ):
         super().__init__(
             room_file,
             render_mode=render_mode,
             auto_reset_on_step=auto_reset_on_step,
             move_speed_px=move_speed_px,
-            stuck_penalty_enabled=stuck_penalty_enabled,
-            stuck_penalty_steps=stuck_penalty_steps,
-            stuck_penalty=stuck_penalty,
             action_repeat=action_repeat,
-            reward_mode=reward_mode,
-            use_validator_termination=use_validator_termination,
+            **kwargs,
         )
-
-
-def _merge_reward_terms(total: RewardTerms, incoming: RewardTerms) -> None:
-    for name, value in incoming.items():
-        total[name] = total.get(name, 0.0) + float(value)
 
 
 register_wrapper("gym", GymDungeonEnv)

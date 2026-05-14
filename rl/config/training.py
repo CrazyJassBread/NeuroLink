@@ -25,6 +25,7 @@ TASK_ROOM_CONFIGS: dict[str, Path] = {
 class TrainingTarget:
     name: str
     config_path: Path
+    task_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,7 @@ def resolve_task_rooms(
     if config_path is not None:
         path = _resolve_project_path(config_path)
         name = path.stem if path.name != "dungeon.json" else path.parent.name
-        return [TrainingTarget(name=name, config_path=path)]
+        return [TrainingTarget(name=name, config_path=path, task_id=None)]
 
     if not task_rooms:
         raise ValueError("at least one task room must be selected")
@@ -77,7 +78,8 @@ def resolve_task_rooms(
         if room_name not in TASK_ROOM_CONFIGS:
             allowed = ", ".join(sorted(TASK_ROOM_CONFIGS))
             raise ValueError(f"unsupported task room '{room_name}', allowed: {allowed}")
-        targets.append(TrainingTarget(name=room_name, config_path=TASK_ROOM_CONFIGS[room_name]))
+        task_id = f"{room_name}_room_001" if room_name in {"avoid_traps", "kill_monsters", "key_door"} else None
+        targets.append(TrainingTarget(name=room_name, config_path=TASK_ROOM_CONFIGS[room_name], task_id=task_id))
     return targets
 
 
