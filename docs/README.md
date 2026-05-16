@@ -6,7 +6,7 @@ flat at the top level.
 ## Start Here
 
 - `guides/env-overview.md`
-  - Human-readable overview of `env_diy`, gameplay mechanics, pure-map schema,
+  - Human-readable overview of `nesylink`, gameplay mechanics, pure-map schema,
     and reward-module-based environment construction.
 - `reference/env-api.md`
   - Canonical API reference for creating environments with `map_id/map_path`

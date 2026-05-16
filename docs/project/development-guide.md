@@ -3,7 +3,7 @@
 ## 1. Purpose
 
 NesyLink is an original reinforcement learning environment project centered on
-`env_diy`, plus a benchmark layer built on top of it.
+`nesylink`, plus a benchmark layer built on top of it.
 
 The project is developed as both:
 
@@ -44,12 +44,12 @@ Prefer generic or original names such as:
 The repository already contains more than a raw environment prototype.
 It currently includes:
 
-- a canonical Gymnasium wrapper under `env_diy.env.make_env(...)`
+- a canonical Gymnasium wrapper under `nesylink.env.make_env(...)`
 - deterministic reset and action sampling support
 - pure map JSON loading through `RoomManager`
 - task-agnostic base `info` and generic event emission
 - direct map-plus-reward environment construction
-- a lightweight benchmark layer under `env_diy/benchmark/`
+- a lightweight benchmark layer under `nesylink/benchmark/`
 - random-policy smoke scripts and PPO integration under `rl/`
 
 When making decisions, optimize for the current repository reality first.
@@ -120,18 +120,19 @@ Work with the current repository structure unless a migration is explicitly
 approved.
 
 ```text
-env_diy/
+nesylink/
+  __init__.py
   env.py              # public environment facade, including make_env(...)
-  wrappers/           # Gymnasium wrapper classes and API registry
-  envs/               # deprecated compatibility namespace for older imports
-  core/               # constants, runtime, collisions, observation/info helpers
-  entities/           # entity state and monster behavior
-  maps/               # room/map schema, path resolution, validation, RoomManager
-  rendering/          # frame renderer and procedural sprites
-  input/              # human-play input state helpers
-  app/                # pygame interactive runner
+  game.py             # pygame human-play / debug entrypoint
+  core/               # runtime, state, world loading, mechanics, rendering, input
+    world/            # room/map schema, parsing, validation, RoomManager
+    mechanics/        # engine, movement, interactions, combat, progress
+    rendering/        # frame renderer and procedural sprites
+    input/            # human-play input helpers
   rewards/            # BaseReward, builtin rewards, reward loader
+  wrappers/           # Gymnasium and Dreamer-facing adapters
   benchmark/          # current benchmark registry, metrics, evaluation
+  tools/              # development-only utilities such as export_map.py
 
 rl/
   utils/              # smoke training helpers
@@ -149,18 +150,15 @@ docs/
 Prefer imports from:
 
 ```python
-from env_diy.env import make_env
+from nesylink.env import make_env
 ```
 
 or from concrete subpackages such as:
 
 ```python
-from env_diy.maps import ...
-from env_diy.rewards import ...
+from nesylink.core.world import ...
+from nesylink.rewards import ...
 ```
-
-`env_diy.envs` is a compatibility namespace and should not be used by new code
-unless the work is specifically about backward compatibility.
 
 ## 6. Required Workflow for Codex
 
@@ -280,7 +278,7 @@ observation_space
 For new code, the canonical entrypoint is:
 
 ```python
-from env_diy.env import make_env
+from nesylink.env import make_env
 env = make_env(config_path, api="gym")
 ```
 
@@ -303,7 +301,7 @@ approved and versioned.
 | 5 | A / interact |
 | 6 | B / shield |
 
-Rules for `env_diy`:
+Rules for `nesylink`:
 
 - `env.step(action)` advances exactly one environment tick
 - no-op, A/interact, and B/shield still advance monster AI, timers, collision,
@@ -334,7 +332,7 @@ Default speed policy:
 
 Observation format must remain stable within a released benchmark version.
 
-For `env_diy`:
+For `nesylink`:
 
 - the observation covers only the `8 x 10` dungeon area
 - the HUD region must never be treated as walkable map space
@@ -360,7 +358,7 @@ Observation-space changes are benchmark-breaking unless versioned.
 
 Task reward logic must remain external to the base environment.
 
-The canonical implementation lives under `env_diy/rewards/`.
+The canonical implementation lives under `nesylink/rewards/`.
 
 Reward policy requirements:
 
@@ -460,7 +458,7 @@ Before changing map format, present:
 - test plan
 - benchmark compatibility impact
 
-Current `env_diy` geometry policy:
+Current `nesylink` geometry policy:
 
 - dungeon width: 10 tiles
 - dungeon height: 8 tiles
@@ -489,7 +487,7 @@ General rules:
 - colliding with a map boundary from a non-exit tile must not change rooms
 - locked exits should report a clear blocked event when requirements are not met
 
-Current fixed exit shape policy for `env_diy`:
+Current fixed exit shape policy for `nesylink`:
 
 - north exit tiles: `(4, 0)` and `(5, 0)`
 - south exit tiles: `(4, 7)` and `(5, 7)`
@@ -631,7 +629,7 @@ bump:
 
 ### 19.1 Current official benchmark scope
 
-The current repository benchmark lives under `env_diy/benchmark/`.
+The current repository benchmark lives under `nesylink/benchmark/`.
 
 Its current role is:
 
@@ -761,9 +759,8 @@ Lightweight RL smoke code should live under `rl/`.
 
 Rules:
 
-- prefer `env_diy.env.make_env(api="gym", ...)`
-- keep `env_diy.env.DungeonEnv` only for compatibility auto-reset behavior
-- treat `env_diy.envs.DungeonEnv` as deprecated
+- prefer `nesylink.env.make_env(api="gym", ...)`
+- keep `nesylink.env.DungeonEnv` only for compatibility auto-reset behavior
 - keep smoke scripts dependency-light
 - standard library, NumPy, and Gymnasium are enough for random rollout
   validation
@@ -843,7 +840,7 @@ Current supporting docs should remain aligned with code:
 - `docs/reference/rewards.md`
 - `docs/reference/tasks-and-validators.md`
 - `docs/reference/benchmark-v0.md`
-- `env_diy/README.md`
+- `nesylink/README.md`
 - `rl/README.md`
 
 When benchmark maturity changes, update the docs in the same change.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from env_diy.rewards.base import BaseReward
+from nesylink.rewards.context import build_reward_context, extract_reward_signals
+from nesylink.rewards.base import BaseReward
 
 
 class _TestReward(BaseReward):
@@ -124,3 +125,42 @@ def test_base_reward_detects_death_from_game_flags() -> None:
 
     assert reward_info["reward_signals"]["death"] == 1
     assert value == -0.5 - 2.0 - 9.0
+
+
+def test_reward_context_builds_structured_views_and_common_signals() -> None:
+    context = build_reward_context(
+        prev_info=_info(hp=6, gold=1, keys=0, monsters_remaining=2),
+        info=_info(
+            hp=4,
+            gold=4,
+            keys=1,
+            monsters_remaining=1,
+            room_id="room_b",
+            counts={
+                "monster_damaged": 1,
+                "monster_killed": 1,
+                "door_opened": 1,
+                "chest_opened": 1,
+                "action_blocked": 1,
+            },
+            room_changed=True,
+            exit_reached=True,
+        ),
+        action=5,
+    )
+
+    signals = extract_reward_signals(context)
+    assert context.agent["hp"] == 4
+    assert context.prev_agent["hp"] == 6
+    assert context.event_counts["monster_killed"] == 1
+    assert context.game["room_changed"] is True
+    assert signals["hp_loss"] == 2
+    assert signals["gold_delta"] == 3
+    assert signals["keys_delta"] == 1
+    assert signals["monster_hit"] == 1
+    assert signals["monster_kill"] == 1
+    assert signals["door_opened"] == 1
+    assert signals["chest_opened"] == 1
+    assert signals["room_changed"] == 1
+    assert signals["exit_reached"] == 1
+    assert signals["invalid_action"] == 1

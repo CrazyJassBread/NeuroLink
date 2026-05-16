@@ -5,8 +5,8 @@ import types
 
 import pytest
 
-from env_diy.rewards.base import BaseReward
-from env_diy.rewards.loader import load_reward, resolve_reward_module
+from nesylink.rewards.base import BaseReward
+from nesylink.rewards.loader import load_reward, resolve_reward_module
 
 
 def test_load_reward_supports_builtin_reward_id() -> None:

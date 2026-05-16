@@ -1,19 +1,19 @@
-# env_diy API
+# NesyLink API
 
 ## Environment Construction
 
 Preferred entrypoint:
 
 ```python
-from env_diy.envs.factory import make_env
+from nesylink.env import make_env
 ```
 
 Supported forms:
 
 ```python
 env = make_env(map_id="dungeon", reward_id="sparse_exit", max_steps=500)
-env = make_env(map_path="env_diy/maps/dungeon.json", reward_id="collect_key")
-env = make_env(map_id="dungeon", reward_module="env_diy.rewards.exploration")
+env = make_env(map_path="nesylink/map_data/dungeons/prototype/dungeon.json", reward_id="collect_key")
+env = make_env(map_id="dungeon", reward_module="nesylink.rewards.exploration")
 ```
 
 Parameters:

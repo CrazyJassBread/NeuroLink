@@ -5,7 +5,7 @@ The RL helpers now build environments by selecting a map plus a reward.
 Examples:
 
 ```bash
-python rl/train_random.py --config env_diy/map_data/dungeons/prototype/dungeon.json
+python rl/train_random.py --config nesylink/map_data/dungeons/prototype/dungeon.json
 python rl/train_single_task.py --task key_door --episodes 1 --max-steps 50
 python rl/train.py --method ppo --task-rooms key_door --total-timesteps 50000
 ```

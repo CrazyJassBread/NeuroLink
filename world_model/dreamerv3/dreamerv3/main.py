@@ -230,7 +230,7 @@ def make_env(config, index, **overrides):
       'langroom': 'embodied.envs.langroom:LangRoom',
       'procgen': 'embodied.envs.procgen:ProcGen',
       'bsuite': 'embodied.envs.bsuite:BSuite',
-      'env_diy': 'embodied.envs.env_diy:EnvDIY',
+      'nesylink': 'embodied.envs.nesylink:NesyLinkEnv',
       'memmaze': lambda task, **kw: from_gym.FromGym(
           f'MemoryMaze-{task}-v0', **kw),
   }[suite]
@@ -249,8 +249,8 @@ def make_env(config, index, **overrides):
 
 
 def split_task(task):
-  if task.startswith('env_diy_'):
-    return 'env_diy', task[len('env_diy_'):]
+  if task.startswith('nesylink_'):
+    return 'nesylink', task[len('nesylink_'):]
   return task.split('_', 1)
 
 

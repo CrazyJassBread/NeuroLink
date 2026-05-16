@@ -127,7 +127,7 @@ creating overlapping explanations.
 If you add, move, split, or merge a user-facing document:
 
 - update `docs/README.md` if the navigation should change
-- update README links in `README.md`, `env_diy/README.md`, or `rl/README.md`
+- update README links in `README.md`, `nesylink/README.md`, or `rl/README.md`
   when their references change
 - do not leave new documentation discoverable only by filename with no hub or
   README entry when it should be part of the normal documentation flow

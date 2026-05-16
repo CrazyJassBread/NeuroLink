@@ -1,6 +1,6 @@
 # NeuroLink
 
-NeuroLink contains `env_diy`, RL smoke training helpers, and DreamerV3 experiments.
+NeuroLink contains `nesylink`, RL smoke training helpers, and DreamerV3 experiments.
 
 ## Quick Start
 
@@ -10,10 +10,10 @@ source .venv/bin/activate
 pip install -r requirements/requirements.txt
 ```
 
-## env_diy
+## NesyLink
 
 ```python
-from env_diy.envs.factory import make_env
+from nesylink.env import make_env
 
 env = make_env(
     map_id="dungeon",

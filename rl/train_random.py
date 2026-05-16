@@ -15,7 +15,7 @@ DEFAULT_OUTPUT_PATH = Path("rl") / "outputs" / "random_training.jsonl"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run a random-policy smoke training loop for env_diy.")
+    parser = argparse.ArgumentParser(description="Run a random-policy smoke training loop for nesylink.")
     parser.add_argument("--episodes", type=int, default=5, help="Number of episodes to run.")
     parser.add_argument("--max-steps", type=int, default=200, help="Maximum steps per episode.")
     parser.add_argument("--seed", type=int, default=0, help="Base random seed.")
@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
         "--config",
         type=Path,
         default=None,
-        help="Dungeon config path. Defaults to env_diy/map_data/dungeons/prototype/dungeon.json.",
+        help="Dungeon config path. Defaults to nesylink/map_data/dungeons/prototype/dungeon.json.",
     )
     parser.add_argument(
         "--output",

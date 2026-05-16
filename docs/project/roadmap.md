@@ -16,7 +16,7 @@ benchmark focused on:
 
 The repository currently has:
 
-- a working `env_diy` Gymnasium environment
+- a working `nesylink` Gymnasium environment
 - task-specific challenge rooms
 - benchmark v0 smoke evaluation
 - RL smoke scripts and PPO integration

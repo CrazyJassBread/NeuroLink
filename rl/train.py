@@ -19,7 +19,7 @@ from rl.config import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Unified training entry for classic RL algorithms on env_diy.",
+        description="Unified training entry for classic RL algorithms on nesylink.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--method", choices=SUPPORTED_METHODS, default=DEFAULT_TRAINING_CONFIG.method)
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         dest="config_path",
         type=Path,
         default=DEFAULT_TRAINING_CONFIG.config_path,
-        help="Explicit env_diy dungeon/room JSON path. Overrides --task-rooms.",
+        help="Explicit nesylink dungeon/room JSON path. Overrides --task-rooms.",
     )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_TRAINING_CONFIG.output_dir)
     parser.add_argument("--render", action="store_true", default=DEFAULT_TRAINING_CONFIG.render)

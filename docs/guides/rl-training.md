@@ -5,7 +5,7 @@ Use `map + reward` directly.
 ## Examples
 
 ```python
-from env_diy.envs.factory import make_env
+from nesylink.env import make_env
 
 env = make_env(
     map_id="dungeon",
@@ -16,7 +16,7 @@ env = make_env(
 
 ```python
 env = make_env(
-    map_path="env_diy/map_data/dungeons/key_door/room_001.json",
+    map_path="nesylink/map_data/dungeons/key_door/room_001.json",
     reward_id="collect_key",
     max_steps=200,
 )
@@ -24,7 +24,7 @@ env = make_env(
 
 ```python
 env = make_env(
-    map_path="env_diy/maps/dungeon.json",
+    map_path="nesylink/map_data/dungeons/prototype/dungeon.json",
     reward_module="experiments.rewards.my_custom_reward",
 )
 ```

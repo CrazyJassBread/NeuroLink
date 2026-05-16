@@ -1,5 +1,7 @@
 from __future__ import annotations
+# ruff: noqa: E402
 
+import importlib
 import json
 import subprocess
 import sys
@@ -9,15 +11,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from env_diy.envs.factory import make_env
-from env_diy.maps.loader import load_map
-from env_diy.maps.rooms import RoomManager
+from nesylink.env import make_env
+from nesylink.core.world.loader import load_map
+from nesylink.core.world.rooms import RoomManager
 
 
-DUNGEON_ROOT = PROJECT_ROOT / "env_diy" / "map_data" / "dungeons"
-EXPORT_SCRIPT = PROJECT_ROOT / "env_diy" / "tools" / "export_map.py"
-MIGRATE_SCRIPT = PROJECT_ROOT / "env_diy" / "tools" / "migrate_map_schema.py"
-SOURCE_ROOT = PROJECT_ROOT / "env_diy" / "diy_map_sources" / "examples"
+DUNGEON_ROOT = PROJECT_ROOT / "nesylink" / "map_data" / "dungeons"
+EXPORT_SCRIPT = PROJECT_ROOT / "nesylink" / "tools" / "export_map.py"
+MIGRATE_SCRIPT = PROJECT_ROOT / "nesylink" / "tools" / "migrate_map_schema.py"
+SOURCE_ROOT = PROJECT_ROOT / "nesylink" / "diy_map_sources" / "examples"
 FORBIDDEN_MAP_KEYS = {
     "task",
     "task_id",
@@ -40,6 +42,20 @@ FORBIDDEN_INFO_KEYS = {
     "success_condition",
     "failure_condition",
 }
+OBSOLETE_IMPORT_PATHS = (
+    "nesylink.maps",
+    "nesylink.entities",
+    "nesylink.input",
+    "nesylink.app",
+    "nesylink.rendering",
+    "nesylink.integrations",
+    "nesylink.envs",
+)
+IMPORT_SCAN_ROOTS = (
+    PROJECT_ROOT / "nesylink",
+    PROJECT_ROOT / "rl" / "utils" / "env_factory.py",
+    PROJECT_ROOT / "world_model" / "dreamerv3" / "embodied" / "envs" / "nesylink.py",
+)
 
 
 def _all_map_files() -> list[Path]:
@@ -54,10 +70,11 @@ def test_all_map_json_are_pure_map_schema() -> None:
 
 def test_load_map_supports_map_id_and_map_path() -> None:
     by_id = load_map(map_id="dungeon")
-    by_path = load_map(map_path="env_diy/maps/dungeon.json")
+    by_path = load_map(map_path="nesylink/map_data/dungeons/prototype/dungeon.json")
 
-    assert by_id == PROJECT_ROOT / "env_diy" / "maps" / "dungeon.json"
-    assert by_path == PROJECT_ROOT / "env_diy" / "maps" / "dungeon.json"
+    expected = PROJECT_ROOT / "nesylink" / "map_data" / "dungeons" / "prototype" / "dungeon.json"
+    assert by_id == expected
+    assert by_path == expected
 
 
 def test_reset_info_contains_only_base_fields_plus_reward() -> None:
@@ -91,7 +108,7 @@ def test_step_populates_reward_info_and_signal_step() -> None:
 def test_reward_module_creation_path_works() -> None:
     env = make_env(
         map_path=DUNGEON_ROOT / "key_door" / "room_001.json",
-        reward_module="env_diy.rewards.collect_key",
+        reward_module="nesylink.rewards.collect_key",
         max_steps=20,
     )
     try:
@@ -260,3 +277,91 @@ def test_export_map_outputs_pure_map_json(tmp_path: Path) -> None:
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert FORBIDDEN_MAP_KEYS.isdisjoint(payload.keys())
     RoomManager(output_path)
+
+
+def test_import_nesylink_does_not_eagerly_import_app_or_pygame() -> None:
+    script = """
+import json
+import sys
+
+import nesylink
+
+print(json.dumps({
+    "has_make_env": callable(getattr(nesylink, "make_env", None)),
+    "game_loaded": "nesylink.game" in sys.modules,
+    "pygame_loaded": "pygame" in sys.modules,
+}))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+
+    payload = json.loads(result.stdout)
+    assert payload["has_make_env"] is True
+    assert payload["game_loaded"] is False
+    assert payload["pygame_loaded"] is False
+
+
+def test_canonical_modules_import_from_new_architecture() -> None:
+    rooms_module = importlib.import_module("nesylink.core.world.rooms")
+    loader_module = importlib.import_module("nesylink.core.world.loader")
+    state_module = importlib.import_module("nesylink.core.state")
+    monsters_module = importlib.import_module("nesylink.core.monsters")
+    engine_module = importlib.import_module("nesylink.core.mechanics.engine")
+    rendering_module = importlib.import_module("nesylink.core.rendering")
+    input_module = importlib.import_module("nesylink.core.input.human")
+    rewards_module = importlib.import_module("nesylink.rewards")
+    wrappers_module = importlib.import_module("nesylink.wrappers")
+
+    assert hasattr(rooms_module, "RoomManager")
+    assert callable(getattr(loader_module, "load_map", None))
+    assert hasattr(state_module, "PlayerState")
+    assert hasattr(monsters_module, "MonsterState")
+    assert hasattr(engine_module, "DungeonEngine")
+    assert callable(getattr(rendering_module, "render_frame", None))
+    assert hasattr(input_module, "HumanInputState")
+    assert callable(getattr(rewards_module, "load_reward", None))
+    assert callable(getattr(wrappers_module, "get_wrapper", None))
+
+
+def test_core_world_and_mechanics_responsibilities_are_split_into_modules() -> None:
+    schema_module = importlib.import_module("nesylink.core.world.schema")
+    parser_module = importlib.import_module("nesylink.core.world.parser")
+    validator_module = importlib.import_module("nesylink.core.world.validator")
+    rooms_module = importlib.import_module("nesylink.core.world.rooms")
+    movement_module = importlib.import_module("nesylink.core.mechanics.movement")
+    interactions_module = importlib.import_module("nesylink.core.mechanics.interactions")
+    combat_module = importlib.import_module("nesylink.core.mechanics.combat")
+    progress_module = importlib.import_module("nesylink.core.mechanics.progress")
+
+    assert hasattr(schema_module, "RoomTemplate")
+    assert callable(getattr(parser_module, "build_room_template", None))
+    assert callable(getattr(validator_module, "validate_exit_targets", None))
+    assert hasattr(rooms_module, "RoomManager")
+    assert callable(getattr(movement_module, "handle_move", None))
+    assert callable(getattr(movement_module, "resolve_transition", None))
+    assert callable(getattr(interactions_module, "handle_equipped_action", None))
+    assert callable(getattr(interactions_module, "resolve_tile_effects", None))
+    assert callable(getattr(combat_module, "update_monsters", None))
+    assert callable(getattr(combat_module, "resolve_monster_contact", None))
+    assert callable(getattr(progress_module, "step_made_progress", None))
+
+
+def test_internal_code_does_not_import_obsolete_nesylink_namespaces() -> None:
+    offenders: list[str] = []
+
+    for root in IMPORT_SCAN_ROOTS:
+        paths = [root] if root.is_file() else sorted(root.rglob("*.py"))
+        for path in paths:
+            if path.name == "__pycache__":
+                continue
+            content = path.read_text(encoding="utf-8")
+            for obsolete_path in OBSOLETE_IMPORT_PATHS:
+                if obsolete_path in content:
+                    offenders.append(f"{path.relative_to(PROJECT_ROOT)}: {obsolete_path}")
+
+    assert offenders == []

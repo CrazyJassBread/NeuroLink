@@ -1,14 +1,14 @@
-# env_diy Rewards
+# NesyLink Rewards
 
 ## Core Files
 
-- `env_diy/rewards/base.py`
-- `env_diy/rewards/sparse_exit.py`
-- `env_diy/rewards/collect_key.py`
-- `env_diy/rewards/collect_gold.py`
-- `env_diy/rewards/kill_monster.py`
-- `env_diy/rewards/exploration.py`
-- `env_diy/rewards/custom_template.py`
+- `nesylink/rewards/base.py`
+- `nesylink/rewards/sparse_exit.py`
+- `nesylink/rewards/collect_key.py`
+- `nesylink/rewards/collect_gold.py`
+- `nesylink/rewards/kill_monster.py`
+- `nesylink/rewards/exploration.py`
+- `nesylink/rewards/custom_template.py`
 
 ## BaseReward
 
@@ -50,7 +50,7 @@ def make_reward(**kwargs):
 Typical custom reward:
 
 ```python
-from env_diy.rewards.base import BaseReward
+from nesylink.rewards.base import BaseReward
 
 
 class MyReward(BaseReward):

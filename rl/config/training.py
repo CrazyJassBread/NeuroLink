@@ -11,34 +11,34 @@ OUTPUT_ROOT = PROJECT_ROOT / "rl" / "outputs"
 SUPPORTED_METHODS = ("ppo", "dqn", "a3c")
 
 TASK_ROOM_CONFIGS: dict[str, tuple[Path, str | None, str | None]] = {
-    "prototype": (PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "prototype" / "dungeon.json", None, None),
+    "prototype": (PROJECT_ROOT / "nesylink" / "map_data" / "dungeons" / "prototype" / "dungeon.json", None, None),
     "combat_training": (
-        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "combat_training" / "dungeon.json",
+        PROJECT_ROOT / "nesylink" / "map_data" / "dungeons" / "combat_training" / "dungeon.json",
         None,
         None,
     ),
     "evasion_training": (
-        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "evasion_training" / "dungeon.json",
+        PROJECT_ROOT / "nesylink" / "map_data" / "dungeons" / "evasion_training" / "dungeon.json",
         None,
         None,
     ),
     "chest_training": (
-        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "chest_training" / "dungeon.json",
+        PROJECT_ROOT / "nesylink" / "map_data" / "dungeons" / "chest_training" / "dungeon.json",
         None,
         None,
     ),
     "avoid_traps": (
-        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "avoid_traps" / "room_001.json",
+        PROJECT_ROOT / "nesylink" / "map_data" / "dungeons" / "avoid_traps" / "room_001.json",
         "sparse_exit",
         None,
     ),
     "kill_monsters": (
-        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "kill_monsters" / "room_001.json",
+        PROJECT_ROOT / "nesylink" / "map_data" / "dungeons" / "kill_monsters" / "room_001.json",
         "kill_monster",
         None,
     ),
     "key_door": (
-        PROJECT_ROOT / "env_diy" / "map_data" / "dungeons" / "key_door" / "room_001.json",
+        PROJECT_ROOT / "nesylink" / "map_data" / "dungeons" / "key_door" / "room_001.json",
         "collect_key",
         None,
     ),

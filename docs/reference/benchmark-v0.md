@@ -1,4 +1,4 @@
-# env_diy Benchmark v0
+# NesyLink Benchmark v0
 
 This file defines the current benchmark v0 smoke suite only.
 For broader benchmark process and maturity policy, use
@@ -21,7 +21,7 @@ base movement or core game mechanics.
 ## Registry API
 
 ```python
-from env_diy.benchmark import (
+from nesylink.benchmark import (
     list_suites,
     get_suite,
     list_tasks,
@@ -46,13 +46,13 @@ reward configuration.
 ## Random Eval
 
 ```bash
-python -m env_diy.benchmark.eval --suite NesyLink-v0 --policy random --episodes 10 --seed 0
+python -m nesylink.benchmark.eval --suite NesyLink-v0 --policy random --episodes 10 --seed 0
 ```
 
 Save JSON:
 
 ```bash
-python -m env_diy.benchmark.eval --suite NesyLink-v0 --policy random --episodes 10 --seed 0 --json-output /tmp/nesylink-v0.json
+python -m nesylink.benchmark.eval --suite NesyLink-v0 --policy random --episodes 10 --seed 0 --json-output /tmp/nesylink-v0.json
 ```
 
 ## Output Metrics

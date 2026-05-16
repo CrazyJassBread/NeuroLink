@@ -14,7 +14,7 @@ else:
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SINGLE_TASK_ROOT = PROJECT_ROOT / "env_diy" / "map_data" / "dungeons"
+SINGLE_TASK_ROOT = PROJECT_ROOT / "nesylink" / "map_data" / "dungeons"
 DEFAULT_OUTPUT_PATH = Path("rl") / "outputs" / "single_task_training.jsonl"
 SUPPORTED_TASKS = {"avoid_traps", "kill_monsters", "key_door"}
 TASK_REWARD_IDS = {
@@ -36,7 +36,7 @@ class SingleTaskEpisodeResult:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run a random-policy smoke loop for an env_diy single-task room.")
+    parser = argparse.ArgumentParser(description="Run a random-policy smoke loop for an nesylink single-task room.")
     parser.add_argument("--task", choices=sorted(SUPPORTED_TASKS), default="avoid_traps", help="Single-task type.")
     parser.add_argument("--room", default="room_001", help="Room id/file stem inside the task directory.")
     parser.add_argument("--episodes", type=int, default=5, help="Number of episodes to run.")
