@@ -21,10 +21,8 @@ setup.md
 .worktrees/
 
 origin_zelda/
+nesylink/benchmark/
 
 asserts/game_state/
 
 tests/
-!tests/
-tests/__pycache__/
-!tests/*.py

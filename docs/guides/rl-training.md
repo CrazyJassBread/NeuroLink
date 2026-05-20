@@ -1,32 +1,35 @@
 # RL Training Guide
 
-Use `map + reward` directly.
+Use the unified root entrypoint:
 
-## Examples
-
-```python
-from nesylink.env import make_env
-
-env = make_env(
-    map_id="dungeon",
-    reward_id="sparse_exit",
-    max_steps=500,
-)
+```bash
+python train.py --config rl/config/defaults/ppo_nesylink.yaml
+python train.py --config rl/config/defaults/ppo_minigrid.yaml
 ```
 
-```python
-env = make_env(
-    map_path="nesylink/map_data/dungeons/key_door/room_001.json",
-    reward_id="collect_key",
-    max_steps=200,
-)
+Override config values from the CLI when needed:
+
+```bash
+python train.py \
+  --config rl/config/defaults/ppo_minigrid.yaml \
+  --set environment.task_id=MiniGrid-DoorKey-5x5-v0 \
+  --set algorithm.total_timesteps=100000
 ```
 
-```python
-env = make_env(
-    map_path="nesylink/map_data/dungeons/prototype/dungeon.json",
-    reward_module="experiments.rewards.my_custom_reward",
-)
-```
+Config layout:
 
-`info["reward"]` is the supported place to inspect reward decomposition metadata.
+- `experiment`: run name, seed, device, output path, resume flag.
+- `environment`: environment id plus environment-specific parameters.
+- `algorithm`: algorithm name, total timesteps, and extra hyperparameters.
+- `evaluation`: eval cadence and artifact persistence settings.
+
+Supported environment ids today:
+
+- `nesylink`
+- `minigrid`
+
+Supported algorithm ids today:
+
+- `ppo`
+- `dqn` (registry only, implementation pending)
+- `a3c` (registry only, implementation pending)

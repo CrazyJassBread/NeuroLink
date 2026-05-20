@@ -1,0 +1,29 @@
+experiment:
+  name: ppo_nesylink_prototype
+  seed: 0
+  device: auto
+  output_dir: rl/outputs/ppo_nesylink
+  resume: false
+
+environment:
+  id: nesylink
+  map_path: nesylink/map_data/dungeons/prototype/dungeon.json
+  reward_id: sparse_exit
+  action_repeat: 1
+  max_episode_steps: 500
+  render: false
+
+algorithm:
+  name: ppo
+  total_timesteps: 50000
+  learning_rate: 0.0003
+  n_steps: 512
+  batch_size: 256
+
+evaluation:
+  enabled: true
+  episodes: 5
+  deterministic: true
+  save_model: true
+  save_metrics: true
+  render: false

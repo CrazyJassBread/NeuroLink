@@ -1,20 +1,18 @@
-# RL Helpers
+# RL Training
 
-The RL helpers now build environments by selecting a map plus a reward.
-
-Examples:
+Training now uses one unified entrypoint at the repository root:
 
 ```bash
-python rl/train_random.py --config nesylink/map_data/dungeons/prototype/dungeon.json
-python rl/train_single_task.py --task key_door --episodes 1 --max-steps 50
-python rl/train.py --method ppo --task-rooms key_door --total-timesteps 50000
+python train.py --config rl/config/defaults/ppo_nesylink.yaml
+python train.py --config rl/config/defaults/ppo_minigrid.yaml
+python train.py --config rl/config/defaults/ppo_minigrid.yaml --set algorithm.total_timesteps=100000
 ```
 
-Internally the training helpers use:
+Structure:
 
-- `map_path`
-- `reward_id`
-- `reward_module`
-- `max_steps`
+- `rl/config/`: YAML experiment configs plus schema/loader code.
+- `rl/envs/`: environment adapters and registry.
+- `rl/algorithms/`: algorithm-specific trainers and registries.
+- `rl/runners/`: top-level orchestration from config to training run.
 
-They no longer rely on task registry lookups.
+The root `train.py` is the only supported training interface.

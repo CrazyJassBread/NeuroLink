@@ -1,0 +1,28 @@
+experiment:
+  name: ppo_minigrid_smoke
+  seed: 0
+  device: auto
+  output_dir: rl/outputs/ppo_minigrid
+  resume: false
+
+environment:
+  id: minigrid
+  task_id: MiniGrid-Empty-5x5-v0
+  max_episode_steps: 100
+  num_envs: 1
+  render: false
+
+algorithm:
+  name: ppo
+  total_timesteps: 20000
+  learning_rate: 0.00025
+  n_steps: 256
+  batch_size: 256
+
+evaluation:
+  enabled: true
+  episodes: 5
+  deterministic: true
+  save_model: true
+  save_metrics: true
+  render: false
