@@ -3,40 +3,55 @@ from __future__ import annotations
 import numpy as np
 
 from ..constants import TILE_SIZE
+from ..state import PlayerState
 
 
 Color = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
 
 
-OUTLINE = (8, 10, 12)
-HIGHLIGHT = (252, 242, 184)
-SHADOW = (34, 28, 28)
-FLOOR_LIGHT = (31, 43, 40)
-FLOOR_DARK = (22, 31, 30)
-WALL_LIGHT = (100, 122, 116)
-WALL_DARK = (48, 62, 60)
-PLAYER_TUNIC = (70, 176, 112)
-PLAYER_FACE = (238, 198, 142)
-PLAYER_HAIR = (72, 46, 32)
-SLIME_EYE = (246, 246, 230)
-CHEST_WOOD = (168, 94, 44)
-CHEST_BAND = (232, 178, 76)
-CHEST_OPEN_INNER = (48, 34, 30)
-LOCK_COLOR = (238, 196, 84)
-KEY_COLOR = (244, 210, 84)
-COIN_COLOR = (248, 204, 68)
-HEART_COLOR = (226, 68, 94)
-HEAL_CROSS = (248, 248, 236)
-TRAP_METAL = (186, 196, 202)
-TRAP_WARNING = (232, 70, 78)
-BUTTON_UP = (96, 186, 112)
-BUTTON_DOWN = (58, 116, 84)
-EXIT_GLOW = (176, 236, 210)
-DOOR_WOOD = (126, 82, 48)
-CONDITIONAL_GLYPH = (196, 206, 255)
-TEXT_COLOR = (232, 236, 238)
-TEXT_DIM = (162, 172, 176)
+OUTLINE = (8, 8, 16)
+HIGHLIGHT = (255, 244, 112)
+SHADOW = (42, 45, 88)
+FLOOR_LIGHT = (72, 122, 248)
+FLOOR_DARK = (36, 82, 206)
+FLOOR_DARKER = (24, 52, 138)
+WALL_LIGHT = (255, 86, 146)
+WALL_MID = (219, 18, 82)
+WALL_DARK = (88, 0, 36)
+WALL_EDGE = (255, 44, 112)
+PLAYER_TUNIC = (36, 198, 72)
+PLAYER_TUNIC_LIGHT = (126, 248, 82)
+PLAYER_FACE = (240, 154, 52)
+PLAYER_HAIR = (86, 42, 18)
+MONSTER_EYE = (255, 244, 112)
+MONSTER_DARK = (126, 44, 0)
+CHEST_WOOD = (152, 82, 36)
+CHEST_BAND = (255, 216, 80)
+CHEST_OPEN_INNER = (42, 18, 16)
+LOCK_COLOR = (255, 216, 80)
+KEY_COLOR = (255, 216, 80)
+COIN_COLOR = (210, 28, 96)
+HEART_COLOR = (204, 16, 72)
+HEAL_CROSS = (255, 244, 112)
+TRAP_METAL = (112, 112, 126)
+TRAP_WARNING = (255, 244, 112)
+BUTTON_UP = (40, 190, 74)
+BUTTON_DOWN = (28, 112, 52)
+EXIT_GLOW = (255, 244, 112)
+DOOR_WOOD = (96, 48, 26)
+CONDITIONAL_GLYPH = (255, 216, 80)
+TEXT_COLOR = OUTLINE
+TEXT_DIM = SHADOW
+HUD_BG = (255, 255, 132)
+HUD_PANEL = (255, 255, 170)
+HUD_DARK = OUTLINE
+HUD_RUPEE = (214, 26, 96)
+HUD_COIN = (255, 196, 40)
+HUD_COIN_LIGHT = (255, 244, 112)
+HUD_KEY = (255, 216, 80)
+HUD_HEART = (172, 8, 64)
+HUD_HEART_LIGHT = (255, 82, 132)
 
 
 FONT_3X5: dict[str, tuple[str, ...]] = {
@@ -78,10 +93,138 @@ FONT_3X5: dict[str, tuple[str, ...]] = {
     "Z": ("111", "001", "010", "100", "111"),
     ":": ("000", "010", "000", "010", "000"),
     ",": ("000", "000", "000", "010", "100"),
+    ".": ("000", "000", "000", "000", "010"),
     "-": ("000", "000", "111", "000", "000"),
     "_": ("000", "000", "000", "000", "111"),
     "/": ("001", "001", "010", "100", "100"),
     " ": ("000", "000", "000", "000", "000"),
+}
+
+
+PLAYER_SPRITES: dict[str, tuple[str, ...]] = {
+    "down": (
+        "................",
+        ".....OOOOOO.....",
+        "....OGGGGGGO....",
+        "...OGGGGGGGGO...",
+        "...OGGOOOGGGO...",
+        "...OOFFFFOOO....",
+        "...OOFOFOOOO....",
+        "....OFFFFOO.....",
+        ".....OGGGGO.....",
+        "....OGLGGLO.....",
+        "...OOGGGGOO.....",
+        "...OOGBGGOO.....",
+        "...OOGGGGOO.....",
+        "....OOO.OOO.....",
+        "....OBB.OBB.....",
+        "................",
+    ),
+    "up": (
+        "................",
+        "......OOOO......",
+        ".....OGGGGO.....",
+        "....OGGGGGGO....",
+        "...OGGGGGGGGO...",
+        "...OGGLLLGGGO...",
+        "...OGGGHGGGGO...",
+        "....OHHHHHO.....",
+        ".....OGGGGO.....",
+        "....OGLGGLO.....",
+        "...OOGGGGOO.....",
+        "...OOGBGGOO.....",
+        "...OOGGGGOO.....",
+        "....OOO.OOO.....",
+        "....OBB.OBB.....",
+        "................",
+    ),
+    "right": (
+        "................",
+        ".....OOOOO......",
+        "....OGGGGGO.....",
+        "...OGGGGGGGO....",
+        "...OGGGGOOOO....",
+        "....OOFFFHOO....",
+        ".....OFFFOOO....",
+        ".....OOFOOO.....",
+        "....OOGGGO......",
+        "...OOGGLGGO.....",
+        "..OOGGGGGGO.....",
+        "...OOGBGGOO.....",
+        "....OOGGGO......",
+        ".....OO.OO......",
+        ".....OB.OB......",
+        "................",
+    ),
+}
+PLAYER_SPRITES["left"] = tuple(row[::-1] for row in PLAYER_SPRITES["right"])
+
+
+PLAYER_PALETTE: dict[str, Color] = {
+    "O": OUTLINE,
+    "G": PLAYER_TUNIC,
+    "L": PLAYER_TUNIC_LIGHT,
+    "F": PLAYER_FACE,
+    "H": PLAYER_HAIR,
+    "B": SHADOW,
+}
+
+
+MONSTER_SPRITES: dict[str, tuple[str, ...]] = {
+    "chaser": (
+        "................",
+        "......O..O......",
+        "...O..OOOO..O...",
+        "..OMOOMMMMOOMO..",
+        "..OMMMMMMMMMMO..",
+        ".OMMEOOMMEOOMMO.",
+        ".OMMEOOMMEOOMMO.",
+        "..OMMMMMMMMMMO..",
+        "...OMMOOOOOMMO..",
+        "....OMMMMMMO....",
+        "...OOO....OOO...",
+        "..OO........OO..",
+        "................",
+        "................",
+        "................",
+        "................",
+    ),
+    "patroller": (
+        "................",
+        "................",
+        "..OO......OO....",
+        ".OMMO....OMMO...",
+        "OMMMMO..OMMMMO..",
+        "OMMMMMOOMMMMMO..",
+        ".OMMMEOOEMMMO...",
+        "..OMMMOOMMMO....",
+        "....OMMMMMO.....",
+        ".....OHHHO......",
+        "......OOO.......",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+    ),
+    "ambusher": (
+        "................",
+        "................",
+        ".....OOOOOO.....",
+        "...OOMMMMMMOO...",
+        "..OMMMMMMMMMMO..",
+        "..OMMOOMMOOMMO..",
+        ".OMMMEOOOEMMMO..",
+        ".OMMMMMMMMMMMO..",
+        "..OMMHHHHHMMO...",
+        "...OMMMMMMMO....",
+        "..OOO....OOO....",
+        ".OO........OO...",
+        "................",
+        "................",
+        "................",
+        "................",
+    ),
 }
 
 
@@ -93,34 +236,108 @@ def tile_rect(col: int, row: int, padding: int = 0) -> Rect:
 
 def draw_floor(frame: np.ndarray, col: int, row: int) -> None:
     rect = tile_rect(col, row)
-    color = FLOOR_LIGHT if (col + row) % 2 == 0 else FLOOR_DARK
-    fill_rect(frame, rect, color)
+    fill_rect(frame, rect, FLOOR_LIGHT)
     left, top, width, height = rect
-    frame[top, left : left + width] = (42, 58, 55)
-    frame[top : top + height, left] = (42, 58, 55)
-    if (col * 3 + row) % 4 == 0:
-        fill_rect(frame, (left + 10, top + 4, 2, 1), (38, 52, 49))
+    pebble_shift = (col * 5 + row * 3) % 4
+    for pebble_left, pebble_top in ((1, 1), (8, 1), (4, 6), (12, 8), (2, 12), (9, 13)):
+        x = left + pebble_left + pebble_shift % 2
+        y = top + pebble_top
+        fill_rect(frame, (x + 1, y, 4, 1), FLOOR_DARK)
+        fill_rect(frame, (x, y + 1, 6, 3), FLOOR_DARK)
+        fill_rect(frame, (x + 1, y + 4, 4, 1), FLOOR_DARKER)
+        fill_rect(frame, (x + 4, y + 2, 1, 1), FLOOR_LIGHT)
 
 
 def draw_wall(frame: np.ndarray, col: int, row: int) -> None:
-    rect = tile_rect(col, row, 1)
-    fill_rect(frame, rect, WALL_DARK)
+    rect = tile_rect(col, row)
+    fill_rect(frame, rect, WALL_MID)
     left, top, width, height = rect
-    fill_rect(frame, (left + 1, top + 1, width - 2, 5), WALL_LIGHT)
-    fill_rect(frame, (left + 2, top + 8, width - 3, 2), (78, 96, 91))
     draw_rect_outline(frame, rect, OUTLINE)
+    fill_rect(frame, (left + 2, top + 2, width - 4, 3), WALL_LIGHT)
+    fill_rect(frame, (left + 3, top + 5, width - 6, 2), WALL_EDGE)
+    fill_rect(frame, (left + 2, top + 11, width - 4, 2), WALL_DARK)
+    fill_rect(frame, (left + 5, top + 7, 2, 5), WALL_DARK)
+    fill_rect(frame, (left + 11, top + 7, 2, 5), WALL_DARK)
+    fill_rect(frame, (left + 4, top + 3, 8, 1), HIGHLIGHT)
 
 
-def draw_player(frame: np.ndarray, position_px: tuple[float, float], size_px: int) -> None:
-    left, top, width, height = _dynamic_rect(position_px, size_px)
-    draw_rect_outline(frame, (left + 3, top + 5, width - 6, height - 3), OUTLINE)
-    fill_rect(frame, (left + 5, top + 6, 6, 7), PLAYER_TUNIC)
-    fill_rect(frame, (left + 6, top + 2, 5, 5), PLAYER_FACE)
-    fill_rect(frame, (left + 5, top + 1, 6, 3), PLAYER_HAIR)
-    fill_rect(frame, (left + 6, top + 4, 1, 1), OUTLINE)
-    fill_rect(frame, (left + 10, top + 7, 3, 2), HIGHLIGHT)
-    fill_rect(frame, (left + 3, top + 12, 3, 2), SHADOW)
-    fill_rect(frame, (left + 9, top + 12, 3, 2), SHADOW)
+def draw_room_frame(frame: np.ndarray, map_bottom: int) -> None:
+    width = frame.shape[1]
+    fill_rect(frame, (0, 0, width, 4), WALL_LIGHT)
+    fill_rect(frame, (0, map_bottom - 4, width, 4), WALL_DARK)
+    fill_rect(frame, (0, 0, 4, map_bottom), WALL_LIGHT)
+    fill_rect(frame, (width - 4, 0, 4, map_bottom), WALL_DARK)
+    fill_rect(frame, (4, 4, width - 8, 2), OUTLINE)
+    fill_rect(frame, (4, map_bottom - 6, width - 8, 2), OUTLINE)
+    fill_rect(frame, (4, 4, 2, map_bottom - 8), OUTLINE)
+    fill_rect(frame, (width - 6, 4, 2, map_bottom - 8), OUTLINE)
+    for x in range(14, width - 14, 14):
+        fill_rect(frame, (x, 1, 4, 2), WALL_DARK)
+        fill_rect(frame, (x, map_bottom - 3, 4, 2), WALL_LIGHT)
+
+
+def draw_player(frame: np.ndarray, player: PlayerState) -> None:
+    left, top, _, _ = _dynamic_rect(player.position_px, player.size_px)
+    facing = player.action_facing or player.facing
+    draw_player_sprite(frame, left, top, facing)
+    if player.action_ticks_remaining > 0 and player.action_item == "shield":
+        draw_player_shield(frame, left, top, facing)
+    if player.action_ticks_remaining > 0 and player.action_item == "sword":
+        draw_player_sword(frame, left, top, facing)
+
+
+def draw_player_front(frame: np.ndarray, left: int, top: int, width: int, height: int) -> None:
+    draw_player_sprite(frame, left, top, "down")
+
+
+def draw_player_back(frame: np.ndarray, left: int, top: int, width: int, height: int) -> None:
+    draw_player_sprite(frame, left, top, "up")
+
+
+def draw_player_side(frame: np.ndarray, left: int, top: int, width: int, height: int, *, facing: str) -> None:
+    draw_player_sprite(frame, left, top, facing)
+
+
+def draw_player_sprite(frame: np.ndarray, left: int, top: int, facing: str) -> None:
+    sprite = PLAYER_SPRITES.get(facing, PLAYER_SPRITES["down"])
+    draw_pixel_art(frame, sprite, left, top, PLAYER_PALETTE)
+
+
+def draw_player_shield(frame: np.ndarray, left: int, top: int, facing: str) -> None:
+    shield_color = WALL_LIGHT
+    if facing == "left":
+        fill_rect(frame, (left + 1, top + 6, 4, 7), shield_color)
+        draw_rect_outline(frame, (left + 1, top + 6, 4, 7), OUTLINE)
+        return
+    if facing == "right":
+        fill_rect(frame, (left + 11, top + 6, 4, 7), shield_color)
+        draw_rect_outline(frame, (left + 11, top + 6, 4, 7), OUTLINE)
+        return
+    if facing == "up":
+        fill_rect(frame, (left + 5, top + 1, 6, 4), shield_color)
+        draw_rect_outline(frame, (left + 5, top + 1, 6, 4), OUTLINE)
+        return
+    fill_rect(frame, (left + 5, top + 11, 6, 4), shield_color)
+    draw_rect_outline(frame, (left + 5, top + 11, 6, 4), OUTLINE)
+
+
+def draw_player_sword(frame: np.ndarray, left: int, top: int, facing: str) -> None:
+    blade = HIGHLIGHT
+    hilt = CHEST_BAND
+    if facing == "left":
+        fill_rect(frame, (left - 6, top + 7, 6, 2), blade)
+        fill_rect(frame, (left - 1, top + 6, 2, 4), hilt)
+        return
+    if facing == "right":
+        fill_rect(frame, (left + 16, top + 7, 6, 2), blade)
+        fill_rect(frame, (left + 15, top + 6, 2, 4), hilt)
+        return
+    if facing == "up":
+        fill_rect(frame, (left + 7, top - 6, 2, 6), blade)
+        fill_rect(frame, (left + 6, top - 1, 4, 2), hilt)
+        return
+    fill_rect(frame, (left + 7, top + 16, 2, 6), blade)
+    fill_rect(frame, (left + 6, top + 15, 4, 2), hilt)
 
 
 def draw_monster(
@@ -130,22 +347,15 @@ def draw_monster(
     monster_type: str,
     color: Color,
 ) -> None:
-    left, top, width, height = _dynamic_rect(position_px, size_px)
-    body = (left + 2, top + 5, width - 4, height - 6)
-    fill_rect(frame, body, color)
-    draw_rect_outline(frame, body, OUTLINE)
-    if monster_type == "ambusher":
-        fill_rect(frame, (left + 2, top + 3, 3, 3), color)
-        fill_rect(frame, (left + width - 5, top + 3, 3, 3), color)
-    elif monster_type == "patroller":
-        fill_rect(frame, (left + 3, top + 3, width - 6, 3), color)
-        fill_rect(frame, (left + 5, top + 2, width - 10, 1), HIGHLIGHT)
-    else:
-        fill_rect(frame, (left + 4, top + 4, width - 8, 2), color)
-    fill_rect(frame, (left + 5, top + 8, 2, 2), SLIME_EYE)
-    fill_rect(frame, (left + 10, top + 8, 2, 2), SLIME_EYE)
-    fill_rect(frame, (left + 6, top + 9, 1, 1), OUTLINE)
-    fill_rect(frame, (left + 10, top + 9, 1, 1), OUTLINE)
+    left, top, _, _ = _dynamic_rect(position_px, size_px)
+    sprite = MONSTER_SPRITES.get(monster_type, MONSTER_SPRITES["chaser"])
+    palette = {
+        "O": OUTLINE,
+        "M": color,
+        "H": MONSTER_DARK,
+        "E": MONSTER_EYE,
+    }
+    draw_pixel_art(frame, sprite, left, top, palette)
 
 
 def draw_chest(frame: np.ndarray, col: int, row: int, *, opened: bool, loot_kind: str | None = None) -> None:
@@ -243,9 +453,14 @@ def draw_exit(
     rect = (left + 2, top + 2, width - 4, height - 4)
 
     if exit_type == "normal":
-        fill_rect(frame, rect, color)
-        inset = 4
-        fill_rect(frame, (left + inset, top + inset, width - inset * 2, height - inset * 2), EXIT_GLOW)
+        fill_rect(frame, rect, OUTLINE)
+        draw_rect_outline(frame, rect, WALL_LIGHT)
+        if width < height:
+            fill_rect(frame, (left + 4, top + 5, max(1, width - 8), height - 10), SHADOW)
+            fill_rect(frame, (left + 4, top + 5, 2, height - 10), HIGHLIGHT)
+        else:
+            fill_rect(frame, (left + 5, top + 4, width - 10, max(1, height - 8)), SHADOW)
+            fill_rect(frame, (left + 5, top + 4, width - 10, 2), HIGHLIGHT)
     elif exit_type == "locked_key":
         if opened:
             fill_rect(frame, rect, color)
@@ -263,10 +478,16 @@ def draw_exit(
             fill_rect(frame, (left + width // 2 - 2, top + height // 2 - 4, 4, 4), OUTLINE)
             fill_rect(frame, (left + width // 2 - 1, top + height // 2 - 3, 2, 3), color)
     else:
-        fill_rect(frame, rect, color)
-        draw_rect_outline(frame, rect, OUTLINE)
-        fill_rect(frame, (left + width // 2 - 1, top + 4, 2, height - 8), CONDITIONAL_GLYPH)
-        fill_rect(frame, (left + 5, top + height // 2 - 1, width - 10, 2), CONDITIONAL_GLYPH)
+        fill_rect(frame, rect, OUTLINE)
+        draw_rect_outline(frame, rect, HIGHLIGHT)
+        if width < height:
+            fill_rect(frame, (left + width // 2 - 2, top + 5, 4, height - 10), CONDITIONAL_GLYPH)
+            for y_offset in range(7, height - 7, 5):
+                fill_rect(frame, (left + 4, top + y_offset, width - 8, 2), WALL_DARK)
+        else:
+            fill_rect(frame, (left + 5, top + height // 2 - 2, width - 10, 4), CONDITIONAL_GLYPH)
+            for x_offset in range(7, width - 7, 5):
+                fill_rect(frame, (left + x_offset, top + 4, 2, height - 8), WALL_DARK)
 
 
 def draw_hud_text(frame: np.ndarray, line_1: str, line_2: str, *, y: int) -> None:
@@ -274,17 +495,149 @@ def draw_hud_text(frame: np.ndarray, line_1: str, line_2: str, *, y: int) -> Non
     draw_text(frame, line_2.upper(), 6, y + 18, TEXT_DIM)
 
 
-def draw_text(frame: np.ndarray, text: str, x: int, y: int, color: Color) -> None:
+def draw_status_bar(frame: np.ndarray, player: PlayerState, *, y: int) -> None:
+    fill_rect(frame, (0, y, frame.shape[1], frame.shape[0] - y), HUD_BG)
+    fill_rect(frame, (0, y, frame.shape[1], 1), HUD_PANEL)
+    fill_rect(frame, (0, y + 1, frame.shape[1], 2), HUD_DARK)
+
+    draw_text(frame, "B", 1, y + 5, HUD_DARK, scale=2)
+    draw_item_bracket(frame, 17, y + 4, 30, 19)
+    draw_tool_icon(frame, 25, y + 8, player.equipped_tool_label("B"))
+    draw_text(frame, "L-1", 20, y + 24, HUD_DARK, scale=1)
+
+    draw_text(frame, "A", 58, y + 5, HUD_DARK, scale=2)
+    draw_item_bracket(frame, 75, y + 4, 30, 19)
+    draw_tool_icon(frame, 83, y + 8, player.equipped_tool_label("A"))
+    draw_text(frame, "L-1", 78, y + 24, HUD_DARK, scale=1)
+
+    draw_hud_coin(frame, 112, y + 6)
+    draw_text(frame, f"{player.gold:03d}", 122, y + 22, HUD_DARK, scale=1)
+    draw_hud_key(frame, 140, y + 20)
+    draw_text(frame, str(player.keys), 156, y + 24, HUD_DARK, scale=1)
+
+    max_hearts = max(1, player.max_health)
+    for index in range(max_hearts):
+        heart_x = 129 + index * 6
+        heart_y = y + 6 if index < 5 else y + 14
+        draw_hud_heart(frame, heart_x, heart_y, filled=index < player.health)
+
+
+def draw_item_bracket(frame: np.ndarray, left: int, top: int, width: int, height: int) -> None:
+    fill_rect(frame, (left, top, 2, height), HUD_DARK)
+    fill_rect(frame, (left, top, 7, 2), HUD_DARK)
+    fill_rect(frame, (left, top + height - 2, 7, 2), HUD_DARK)
+    fill_rect(frame, (left + width - 2, top, 2, height), HUD_DARK)
+    fill_rect(frame, (left + width - 7, top, 7, 2), HUD_DARK)
+    fill_rect(frame, (left + width - 7, top + height - 2, 7, 2), HUD_DARK)
+
+
+def draw_tool_icon(frame: np.ndarray, left: int, top: int, tool_name: str) -> None:
+    if tool_name == "shield":
+        draw_shield_icon(frame, left, top)
+    else:
+        draw_sword_icon(frame, left, top)
+
+
+def draw_shield_icon(frame: np.ndarray, left: int, top: int) -> None:
+    shield_mid = (114, 82, 176)
+    shield_light = (178, 154, 228)
+    fill_rect(frame, (left + 2, top, 8, 2), HUD_DARK)
+    fill_rect(frame, (left, top + 2, 12, 6), HUD_DARK)
+    fill_rect(frame, (left + 2, top + 8, 8, 3), HUD_DARK)
+    fill_rect(frame, (left + 3, top + 2, 6, 6), shield_mid)
+    fill_rect(frame, (left + 4, top + 2, 3, 2), shield_light)
+    fill_rect(frame, (left + 5, top + 4, 2, 4), HUD_DARK)
+
+
+def draw_sword_icon(frame: np.ndarray, left: int, top: int) -> None:
+    blade = (210, 216, 218)
+    fill_rect(frame, (left + 4, top, 4, 1), HUD_DARK)
+    fill_rect(frame, (left + 5, top + 1, 2, 8), blade)
+    fill_rect(frame, (left + 6, top + 1, 1, 8), HUD_PANEL)
+    fill_rect(frame, (left + 3, top + 8, 6, 2), HUD_DARK)
+    fill_rect(frame, (left + 4, top + 8, 4, 1), HIGHLIGHT)
+    fill_rect(frame, (left + 5, top + 10, 2, 3), HUD_DARK)
+
+
+def draw_hud_rupee(frame: np.ndarray, left: int, top: int) -> None:
+    fill_rect(frame, (left + 2, top, 3, 1), HUD_DARK)
+    fill_rect(frame, (left + 1, top + 1, 5, 2), HUD_RUPEE)
+    fill_rect(frame, (left, top + 3, 7, 4), HUD_RUPEE)
+    fill_rect(frame, (left + 1, top + 7, 5, 2), HUD_RUPEE)
+    fill_rect(frame, (left + 2, top + 9, 3, 1), HUD_DARK)
+    fill_rect(frame, (left + 3, top + 2, 1, 6), HUD_PANEL)
+
+
+def draw_hud_coin(frame: np.ndarray, left: int, top: int) -> None:
+    fill_rect(frame, (left + 2, top, 5, 1), HUD_DARK)
+    fill_rect(frame, (left + 1, top + 1, 7, 2), HUD_DARK)
+    fill_rect(frame, (left, top + 3, 9, 5), HUD_DARK)
+    fill_rect(frame, (left + 1, top + 8, 7, 2), HUD_DARK)
+    fill_rect(frame, (left + 2, top + 10, 5, 1), HUD_DARK)
+    fill_rect(frame, (left + 2, top + 2, 5, 1), HUD_COIN_LIGHT)
+    fill_rect(frame, (left + 1, top + 3, 7, 5), HUD_COIN)
+    fill_rect(frame, (left + 2, top + 8, 5, 1), HUD_COIN)
+    fill_rect(frame, (left + 4, top + 3, 1, 5), HUD_COIN_LIGHT)
+
+
+def draw_hud_key(frame: np.ndarray, left: int, top: int) -> None:
+    fill_rect(frame, (left + 1, top, 5, 1), HUD_DARK)
+    fill_rect(frame, (left, top + 1, 7, 5), HUD_DARK)
+    fill_rect(frame, (left + 2, top + 6, 3, 1), HUD_DARK)
+    fill_rect(frame, (left + 5, top + 3, 8, 2), HUD_DARK)
+    fill_rect(frame, (left + 10, top + 5, 2, 3), HUD_DARK)
+    fill_rect(frame, (left + 13, top + 5, 2, 3), HUD_DARK)
+    fill_rect(frame, (left + 2, top + 2, 3, 3), HUD_BG)
+    fill_rect(frame, (left + 5, top + 3, 7, 1), HUD_KEY)
+    fill_rect(frame, (left + 10, top + 5, 1, 2), HUD_KEY)
+
+
+def draw_hud_heart(frame: np.ndarray, left: int, top: int, *, filled: bool) -> None:
+    color = HUD_HEART if filled else HUD_PANEL
+    fill_rect(frame, (left + 1, top, 2, 2), HUD_DARK)
+    fill_rect(frame, (left + 4, top, 2, 2), HUD_DARK)
+    fill_rect(frame, (left, top + 2, 7, 3), HUD_DARK)
+    fill_rect(frame, (left + 1, top + 5, 5, 1), HUD_DARK)
+    fill_rect(frame, (left + 2, top + 6, 3, 1), HUD_DARK)
+    fill_rect(frame, (left + 2, top + 1, 1, 1), color)
+    fill_rect(frame, (left + 5, top + 1, 1, 1), color)
+    fill_rect(frame, (left + 1, top + 3, 5, 2), color)
+    fill_rect(frame, (left + 2, top + 5, 3, 1), color)
+    if not filled:
+        fill_rect(frame, (left + 2, top + 2, 3, 2), HUD_BG)
+    else:
+        fill_rect(frame, (left + 2, top + 2, 2, 1), HUD_HEART_LIGHT)
+
+
+def draw_text(frame: np.ndarray, text: str, x: int, y: int, color: Color, *, scale: int = 1) -> None:
     cursor_x = x
     for char in text:
         glyph = FONT_3X5.get(char, FONT_3X5[" "])
         for row_index, row in enumerate(glyph):
             for col_index, pixel in enumerate(row):
                 if pixel == "1":
-                    fill_rect(frame, (cursor_x + col_index, y + row_index, 1, 1), color)
-        cursor_x += 4
+                    fill_rect(
+                        frame,
+                        (cursor_x + col_index * scale, y + row_index * scale, scale, scale),
+                        color,
+                    )
+        cursor_x += 4 * scale
         if cursor_x >= frame.shape[1] - 2:
             return
+
+
+def draw_pixel_art(
+    frame: np.ndarray,
+    sprite: tuple[str, ...],
+    left: int,
+    top: int,
+    palette: dict[str, Color],
+) -> None:
+    for y_offset, row in enumerate(sprite):
+        for x_offset, key in enumerate(row):
+            color = palette.get(key)
+            if color is not None:
+                fill_rect(frame, (left + x_offset, top + y_offset, 1, 1), color)
 
 
 def fill_rect(frame: np.ndarray, rect: Rect, color: Color) -> None:

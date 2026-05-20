@@ -2,28 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..constants import MONSTER_STUN_TICKS
-from ..state import EquipmentSlot, ToolType, aabb_overlap, is_adjacent, tile_to_top_left_px
-from .combat import remove_defeated_monster
+from ..equipment import trigger_equipment
+from ..state import EquipmentSlot
+from ..state import is_adjacent, tile_to_top_left_px
 
 
 def handle_equipped_action(engine: Any, slot: EquipmentSlot, result: Any) -> bool:
-    runtime = engine.runtime
-    tool = runtime.player.equipped_tool(slot)
-    if slot == EquipmentSlot.A and tool == ToolType.INTERACT.value:
-        runtime.last_message = "INTERACT"
-        handle_action_a(engine, result)
-        return False
-    if slot == EquipmentSlot.B and tool == ToolType.SHIELD.value:
-        runtime.last_message = "SHIELD"
-        return True
-
-    runtime.last_message = f"{slot.value} NO EFFECT"
-    result.events.append("action_no_effect")
-    return False
+    return trigger_equipment(engine, slot, result).used
 
 
-def handle_action_a(engine: Any, result: Any) -> None:
+def try_interaction(engine: Any, result: Any) -> bool:
     runtime = engine.runtime
     player_tile = runtime.snapshot().player_tile
 
@@ -32,50 +20,14 @@ def handle_action_a(engine: Any, result: Any) -> None:
             chest.is_open = True
             apply_loot(runtime, chest.loot, result)
             result.events.append("chest_opened")
-            return
+            return True
 
     for npc in runtime.room.npcs.values():
         if is_adjacent(player_tile, npc.pos):
             runtime.last_message = npc.text.upper()[:24]
             result.events.append("talked_npc")
-            return
-
-    if handle_monster_attack(engine, result):
-        return
-
-    runtime.last_message = "A NO EFFECT"
-    result.events.append("action_no_effect")
-
-
-def handle_monster_attack(engine: Any, result: Any) -> bool:
-    runtime = engine.runtime
-    player_tile = runtime.snapshot().player_tile
-    for monster in list(runtime.room.monsters.values()):
-        if not (
-            is_adjacent(player_tile, monster.tile_pos)
-            or aabb_overlap(runtime.player.position_px, runtime.player.size_px, monster.position_px, monster.size_px)
-        ):
-            continue
-        monster.hp -= 1
-        monster.stun_ticks_remaining = MONSTER_STUN_TICKS
-        if monster.hp <= 0:
-            remove_defeated_monster(engine, monster, result, killed_by="attack")
-            runtime.last_message = f"ATTACK KILL {monster.monster_type.upper()}"
             return True
 
-        runtime.last_message = f"ATTACK HIT ({monster.hp}HP LEFT)"
-        result.events.append("action_attack")
-        result.events.append("monster_damaged")
-        result.event_details.append(
-            {
-                "type": "monster_damaged",
-                "monster_id": monster.monster_id,
-                "monster_type": monster.monster_type,
-                "monster_hp_remaining": monster.hp,
-                "damaged_by": "attack",
-            }
-        )
-        return True
     return False
 
 

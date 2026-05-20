@@ -22,9 +22,11 @@ def update_monsters(engine: Any, result: Any) -> None:
         occupied_tiles.add(monster.tile_pos)
 
 
-def resolve_monster_contact(engine: Any, result: Any, *, shield_active: bool) -> None:
+def resolve_monster_contact(engine: Any, result: Any) -> None:
     runtime = engine.runtime
-    monster_to_remove: str | None = None
+    from ..equipment import active_block_item
+
+    shield_active = active_block_item(runtime.player) == "shield"
     for monster in runtime.room.monsters.values():
         if monster.stun_ticks_remaining > 0:
             continue
@@ -36,77 +38,41 @@ def resolve_monster_contact(engine: Any, result: Any, *, shield_active: bool) ->
         ):
             continue
         if shield_active:
-            monster.hp -= 1
             knockback_applied_px = apply_monster_knockback(engine, monster)
             monster.stun_ticks_remaining = MONSTER_STUN_TICKS
-            if monster.hp <= 0:
-                monster_to_remove = monster.monster_id
-                runtime.player.gold += MONSTER_KILL_GOLD_REWARD
-                runtime.last_message = f"SHIELD KILL {monster.monster_type.upper()} +{MONSTER_KILL_GOLD_REWARD}G"
-                result.events.append("monster_killed")
-                result.event_details.append(
-                    {
-                        "type": "monster_killed",
-                        "monster_id": monster.monster_id,
-                        "monster_type": monster.monster_type,
-                        "gold_reward": MONSTER_KILL_GOLD_REWARD,
-                        "killed_by": "shield",
-                    }
-                )
-            else:
-                runtime.last_message = f"SHIELD BLOCK ({monster.hp}HP LEFT)"
-                result.events.append("action_shield")
-                result.event_details.append(
-                    {
-                        "type": "action_shield",
-                        "monster_id": monster.monster_id,
-                        "damage_prevented": monster.damage,
-                        "monster_hp_remaining": monster.hp,
-                        "monster_knockback_px": MONSTER_HIT_KNOCKBACK_PX,
-                        "knockback_applied_px": knockback_applied_px,
-                        "monster_stun_ticks": MONSTER_STUN_TICKS,
-                    }
-                )
-            break
-
-        runtime.player.health = max(0, runtime.player.health - monster.damage)
-        monster.hp -= 1
-        knockback_applied_px = apply_monster_knockback(engine, monster)
-        monster.stun_ticks_remaining = MONSTER_STUN_TICKS
-        if monster.hp <= 0:
-            monster_to_remove = monster.monster_id
-            runtime.player.gold += MONSTER_KILL_GOLD_REWARD
-            runtime.last_message = f"KILLED {monster.monster_type.upper()} +{MONSTER_KILL_GOLD_REWARD}G"
-            result.events.append("monster_killed")
+            runtime.last_message = "SHIELD BLOCK"
+            result.events.append("shield_block")
             result.event_details.append(
                 {
-                    "type": "monster_killed",
+                    "type": "shield_block",
                     "monster_id": monster.monster_id,
                     "monster_type": monster.monster_type,
-                    "gold_reward": MONSTER_KILL_GOLD_REWARD,
-                    "damage_taken": monster.damage,
-                }
-            )
-        else:
-            runtime.last_message = f"HIT -{monster.damage}HP ({monster.hp}HP LEFT)"
-            result.events.append("agent_damaged")
-            result.events.append("monster_damaged")
-            result.event_details.append(
-                {
-                    "type": "agent_damaged",
-                    "monster_id": monster.monster_id,
-                    "damage": monster.damage,
+                    "damage_prevented": monster.damage,
                     "monster_hp_remaining": monster.hp,
                     "monster_knockback_px": MONSTER_HIT_KNOCKBACK_PX,
                     "knockback_applied_px": knockback_applied_px,
                     "monster_stun_ticks": MONSTER_STUN_TICKS,
                 }
             )
-        break
+            break
 
-    if monster_to_remove is not None:
-        del runtime.room.monsters[monster_to_remove]
-        unlock_all_monster_defeated_exits(runtime, result)
+        runtime.player.health = max(0, runtime.player.health - monster.damage)
+        knockback_applied_px = apply_monster_knockback(engine, monster)
+        monster.stun_ticks_remaining = MONSTER_STUN_TICKS
+        runtime.last_message = f"HIT -{monster.damage}HP"
+        result.events.append("agent_damaged")
+        result.event_details.append(
+            {
+                "type": "agent_damaged",
+                "monster_id": monster.monster_id,
+                "damage": monster.damage,
+                "monster_hp_remaining": monster.hp,
+                "monster_knockback_px": MONSTER_HIT_KNOCKBACK_PX,
+                "knockback_applied_px": knockback_applied_px,
+                "monster_stun_ticks": MONSTER_STUN_TICKS,
+            }
+        )
+        break
 
 
 def remove_defeated_monster(engine: Any, monster: MonsterState, result: Any, *, killed_by: str) -> None:

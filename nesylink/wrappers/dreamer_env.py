@@ -29,6 +29,7 @@ class NesyLinkEnv(embodied.Env):
         "trap_triggered",
         "monster_damaged",
         "action_shield",
+        "shield_block",
         "monster_killed",
         "agent_dead",
         "exit_reached",

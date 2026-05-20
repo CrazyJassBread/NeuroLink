@@ -46,6 +46,9 @@ def build_info(
     debug_info = {
         "message": resolved_debug_message,
         "engine_done": bool(engine_terminated),
+        "action_item": runtime.player.action_item,
+        "action_pose": runtime.player.action_pose,
+        "action_ticks_remaining": int(runtime.player.action_ticks_remaining),
     }
     game = {
         "dead": bool(runtime.player.health <= 0 or terminal_reason == "agent_dead"),
@@ -70,6 +73,7 @@ def build_info(
             "hp": runtime.player.health,
             "position_px": runtime.player.position_px,
             "tile": player_tile,
+            "facing": runtime.player.facing,
         },
         "inventory": inventory,
         "entities": entities,

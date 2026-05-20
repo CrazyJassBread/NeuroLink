@@ -47,6 +47,22 @@ obs, reward, terminated, truncated, info = env.step(action)
 - truncates on `max_steps`
 - stores reward metadata in `info["reward"]`
 
+Action semantics:
+
+- `0`: wait
+- `1..4`: move up/down/left/right
+- `5`: trigger slot `A`
+- `6`: trigger slot `B`
+
+Default slot behavior:
+
+- `A` starts with `sword`
+- `B` starts with `shield`
+- `A` first tries chest/NPC interaction; if nothing is interactable, it uses the equipped `A` item
+- `shield` blocks contact damage and never damages monsters
+- `sword` handles melee damage with a one-tile forward hitbox
+- action poses remain visible for multiple ticks in RGB renders, but damage/block resolution still happens on the triggering step only
+
 ## Info Shape
 
 Top-level `info` keys:
@@ -64,3 +80,11 @@ Top-level `info` keys:
 - `reward`
 
 `info["task"]` is deprecated and no longer part of the contract.
+
+Additional fields exposed by this version:
+
+- `info["agent"]["facing"]`
+- `info["inventory"]["equipped"]`
+- `info["debug"]["action_item"]`
+- `info["debug"]["action_pose"]`
+- `info["debug"]["action_ticks_remaining"]`

@@ -4,6 +4,7 @@ from pathlib import Path
 import random
 
 from ..constants import ACTION_A, ACTION_B, ACTION_NOOP, MESSAGE_DEFAULT, MOVE_ACTION_TO_DIRECTION, PLAYER_SPEED_PX_PER_TICK
+from ..equipment import trigger_equipment
 from ..state import EquipmentSlot, PlayerState, tile_to_top_left_px
 from ..runtime import RuntimeState
 from ..types import EngineStepResult
@@ -43,17 +44,19 @@ class DungeonEngine:
             progress_start_room_id=runtime.room.room_id,
         )
         runtime.step_count += 1
+        action_started_this_step = False
+
+        self._advance_player_action_state()
 
         move_direction = MOVE_ACTION_TO_DIRECTION.get(action)
         if move_direction is not None:
             result.move_direction = move_direction
             movement.handle_move(self, move_direction, result)
         elif action == ACTION_A:
-            result.events.append("action_interact")
-            result.shield_active = interactions.handle_equipped_action(self, EquipmentSlot.A, result)
+            if not interactions.try_interaction(self, result):
+                action_started_this_step = trigger_equipment(self, EquipmentSlot.A, result).used
         elif action == ACTION_B:
-            result.events.append("action_shield")
-            result.shield_active = interactions.handle_equipped_action(self, EquipmentSlot.B, result)
+            action_started_this_step = trigger_equipment(self, EquipmentSlot.B, result).used
         elif action == ACTION_NOOP:
             runtime.last_message = "WAIT"
             result.events.append("noop")
@@ -65,7 +68,7 @@ class DungeonEngine:
         if runtime.player.health > 0:
             combat.update_monsters(self, result)
         if runtime.player.health > 0:
-            combat.resolve_monster_contact(self, result, shield_active=result.shield_active)
+            combat.resolve_monster_contact(self, result)
 
         if runtime.player.health <= 0:
             result.terminated = True
@@ -87,6 +90,7 @@ class DungeonEngine:
             runtime.no_progress_steps = 0
         else:
             runtime.no_progress_steps += 1
+        self._finalize_player_action_state(action_started_this_step)
 
         result.last_message = runtime.last_message
         return result
@@ -117,3 +121,15 @@ class DungeonEngine:
             no_progress_steps=0,
             seed=self.seed,
         )
+
+    def _advance_player_action_state(self) -> None:
+        player = self.runtime.player
+        if player.action_ticks_remaining > 1:
+            player.action_ticks_remaining -= 1
+
+    def _finalize_player_action_state(self, action_started_this_step: bool) -> None:
+        player = self.runtime.player
+        if action_started_this_step or player.action_item is None:
+            return
+        if player.action_ticks_remaining <= 1:
+            player.clear_action()

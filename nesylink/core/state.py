@@ -44,15 +44,20 @@ class PlayerState:
     gold: int = PLAYER_GOLD_DEFAULT
     keys: int = PLAYER_KEYS_DEFAULT
     items: list[str] = field(default_factory=lambda: ["sword", "shield"])
-    tools: list[str] = field(default_factory=lambda: [ToolType.INTERACT.value, ToolType.SHIELD.value])
+    tools: list[str] = field(default_factory=lambda: [ToolType.SWORD.value, ToolType.SHIELD.value])
     equipped: dict[str, str] = field(
         default_factory=lambda: {
-            EquipmentSlot.A.value: ToolType.INTERACT.value,
+            EquipmentSlot.A.value: ToolType.SWORD.value,
             EquipmentSlot.B.value: ToolType.SHIELD.value,
         }
     )
-    action_a_label: str = ToolType.INTERACT.value.upper()
+    action_a_label: str = ToolType.SWORD.value.upper()
     action_b_label: str = ToolType.SHIELD.value.upper()
+    facing: str = "down"
+    action_pose: str | None = None
+    action_facing: str | None = None
+    action_item: str | None = None
+    action_ticks_remaining: int = 0
 
     def equipped_tool(self, slot: EquipmentSlot) -> str:
         return self.equipped.get(slot.value, ToolType.NONE.value)
@@ -69,6 +74,21 @@ class PlayerState:
             self.action_a_label = tool_name.upper()
         elif slot == EquipmentSlot.B:
             self.action_b_label = tool_name.upper()
+
+    def start_action(self, *, item_name: str, pose: str, facing: str, ticks: int) -> None:
+        self.action_item = item_name
+        self.action_pose = pose
+        self.action_facing = facing
+        self.action_ticks_remaining = max(0, int(ticks))
+
+    def clear_action(self) -> None:
+        self.action_pose = None
+        self.action_facing = None
+        self.action_item = None
+        self.action_ticks_remaining = 0
+
+    def has_action_pose(self) -> bool:
+        return self.action_item is not None and self.action_ticks_remaining > 0
 
 
 @dataclass

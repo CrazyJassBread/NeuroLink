@@ -27,10 +27,10 @@ from .sprites import (
     draw_chest,
     draw_exit,
     draw_floor,
-    draw_hud_text,
     draw_monster,
     draw_npc,
     draw_player,
+    draw_status_bar,
     draw_trap,
     draw_wall,
 )
@@ -52,7 +52,7 @@ def render_frame(room: RoomState, player: PlayerState) -> np.ndarray:
     _draw_exits(frame, room)
     _draw_walls(frame, room)
     _draw_objects(frame, room)
-    draw_player(frame, player.position_px, player.size_px)
+    draw_player(frame, player)
     _draw_hud_text(frame, room, player)
     return frame
 
@@ -65,8 +65,8 @@ def _draw_map_background(frame: np.ndarray) -> None:
 
 def _draw_hud_background(frame: np.ndarray) -> None:
     frame[HUD_PIXEL_Y:, :] = COLOR_HUD_BG
-    frame[HUD_PIXEL_Y + 2 : INTERNAL_HEIGHT - 2, 2 : INTERNAL_WIDTH - 2] = COLOR_HUD_PANEL
-    frame[HUD_PIXEL_Y + 15 : HUD_PIXEL_Y + 17, 6 : INTERNAL_WIDTH - 6] = COLOR_HUD_ACCENT
+    frame[HUD_PIXEL_Y + 2 : INTERNAL_HEIGHT - 2, 1 : INTERNAL_WIDTH - 1] = COLOR_HUD_PANEL
+    frame[HUD_PIXEL_Y : HUD_PIXEL_Y + 2, :] = COLOR_HUD_ACCENT
 
 
 def _draw_walls(frame: np.ndarray, room: RoomState) -> None:
@@ -111,8 +111,5 @@ def _draw_objects(frame: np.ndarray, room: RoomState) -> None:
         draw_monster(frame, monster.position_px, monster.size_px, monster.monster_type, color)
 
 
-def _draw_hud_text(frame: np.ndarray, room: RoomState, player: PlayerState) -> None:
-    room_text = f"R:{room.room_id} HP:{player.health} G:{player.gold}"
-    items = ",".join(player.items) if player.items else "-"
-    equipment = f"A:{player.equipped_tool_label('A')} B:{player.equipped_tool_label('B')}"
-    draw_hud_text(frame, room_text, f"I:{items} {equipment}", y=HUD_PIXEL_Y)
+def _draw_hud_text(frame: np.ndarray, _room: RoomState, player: PlayerState) -> None:
+    draw_status_bar(frame, player, y=HUD_PIXEL_Y)

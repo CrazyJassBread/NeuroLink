@@ -564,6 +564,12 @@ Mechanic expectations:
 - movement respects walls, bounds, locked doors, and blocking entities
 - invalid moves do not crash
 - monsters continue updating even if the player does not move
+- A and B are slot triggers, not hard-coded tool meanings
+- default equipment is `A=sword`, `B=shield`
+- A should prefer chest/NPC interaction before using the equipped A item
+- sword is responsible for monster damage and kills
+- shield is responsible for contact blocking, knockback, and stun only
+- action poses may persist for several ticks for rendering, but must not apply repeated damage from one press
 - traps emit event info and may damage, teleport, or disappear
 - chests require interact, open once unless configured otherwise, and emit
   reward-relevant events

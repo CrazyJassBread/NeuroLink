@@ -17,6 +17,7 @@ MOVE_TO_EXIT_DIRECTION = {
 
 def handle_move(engine: Any, direction: str, result: Any) -> None:
     runtime = engine.runtime
+    runtime.player.facing = direction
     step_dx, step_dy = {
         "up": (0.0, -1.0),
         "down": (0.0, 1.0),

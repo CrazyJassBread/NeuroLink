@@ -29,6 +29,7 @@ Human-play / debug entrypoint:
 ```bash
 python -m nesylink.game --rooms nesylink/map_data/dungeons/prototype/dungeon.json
 ```
+use z for slot A and x for slot B. hold for multi-tile interactions like chests and NPCs.
 
 ## Package Layout
 
@@ -80,6 +81,22 @@ Builtin reward modules live under `nesylink/rewards/`.
 obs, info = env.reset(seed=0)
 obs, reward, terminated, truncated, info = env.step(action)
 ```
+
+Action semantics:
+
+- `0`: wait
+- `1..4`: move up/down/left/right
+- `5`: trigger slot `A`
+- `6`: trigger slot `B`
+
+Default equipment:
+
+- slot `A` starts with `sword`
+- slot `B` starts with `shield`
+- `A` still prioritizes chest/NPC interaction when a target is in range
+- `shield` blocks contact damage and applies knockback/stun, but does not deal damage
+- `sword` is the only default item that can damage or kill monsters
+- sword/shield poses persist for several ticks in render output to make image-based learning easier
 
 `info["reward"]` contains:
 
