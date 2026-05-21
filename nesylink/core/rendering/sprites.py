@@ -43,8 +43,8 @@ DOOR_WOOD = (96, 48, 26)
 CONDITIONAL_GLYPH = (255, 216, 80)
 TEXT_COLOR = OUTLINE
 TEXT_DIM = SHADOW
-HUD_BG = (255, 255, 132)
-HUD_PANEL = (255, 255, 170)
+HUD_BG = (255, 255, 255)
+HUD_PANEL = (238, 238, 236)
 HUD_DARK = OUTLINE
 HUD_RUPEE = (214, 26, 96)
 HUD_COIN = (255, 196, 40)
@@ -52,6 +52,12 @@ HUD_COIN_LIGHT = (255, 244, 112)
 HUD_KEY = (255, 216, 80)
 HUD_HEART = (172, 8, 64)
 HUD_HEART_LIGHT = (255, 82, 132)
+ITEM_WHITE = (238, 238, 236)
+ITEM_GRAY = (156, 156, 180)
+ITEM_GRAY_DARK = (58, 56, 86)
+ITEM_NAVY = (28, 34, 84)
+ITEM_BLUE = (58, 138, 224)
+ITEM_BLUE_LIGHT = (98, 178, 255)
 
 
 FONT_3X5: dict[str, tuple[str, ...]] = {
@@ -228,6 +234,63 @@ MONSTER_SPRITES: dict[str, tuple[str, ...]] = {
 }
 
 
+SHIELD_ICON: tuple[str, ...] = (
+    "..KKK...KKK..",
+    ".KKGG...GGKK.",
+    ".KGGGKKKGGGK.",
+    ".KGGGGGGGGGK.",
+    ".KGGKKKKKGGK.",
+    ".KGGKBBBKGGK.",
+    ".KGGKBBBKGGK.",
+    ".KGGKBBBKGGK.",
+    ".KGGKBBBKGGK.",
+    ".KGGKBBBKGGK.",
+    ".KGGKKKKKGGK.",
+    ".KKGGGGGGGKK.",
+    "..KKGGGGGKK..",
+    "...KKGGGKK...",
+    "....KKKKK....",
+)
+
+
+SWORD_ICON: tuple[str, ...] = (
+    ".....KKK.....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "....KYYYK....",
+    "..KKGGGGGKK..",
+    ".KK..GGG..KK.",
+    ".....GGG.....",
+    ".....GGG.....",
+    "....KNNNK....",
+    "....KNNNK....",
+    ".....KKK.....",
+)
+
+
+ITEM_PALETTE: dict[str, Color] = {
+    "K": OUTLINE,
+    "G": ITEM_GRAY,
+    "W": ITEM_WHITE,
+    "B": ITEM_BLUE,
+}
+
+
+SWORD_PALETTE: dict[str, Color] = {
+    "K": OUTLINE,
+    "Y": HIGHLIGHT,
+    "G": ITEM_GRAY,
+    "N": ITEM_NAVY,
+}
+
+
 def tile_rect(col: int, row: int, padding: int = 0) -> Rect:
     left = col * TILE_SIZE + padding
     top = row * TILE_SIZE + padding
@@ -304,40 +367,54 @@ def draw_player_sprite(frame: np.ndarray, left: int, top: int, facing: str) -> N
 
 
 def draw_player_shield(frame: np.ndarray, left: int, top: int, facing: str) -> None:
-    shield_color = WALL_LIGHT
     if facing == "left":
-        fill_rect(frame, (left + 1, top + 6, 4, 7), shield_color)
-        draw_rect_outline(frame, (left + 1, top + 6, 4, 7), OUTLINE)
+        draw_small_side_shield(frame, left, top, x_offset=1)
         return
     if facing == "right":
-        fill_rect(frame, (left + 11, top + 6, 4, 7), shield_color)
-        draw_rect_outline(frame, (left + 11, top + 6, 4, 7), OUTLINE)
+        draw_small_side_shield(frame, left, top, x_offset=11)
         return
     if facing == "up":
-        fill_rect(frame, (left + 5, top + 1, 6, 4), shield_color)
-        draw_rect_outline(frame, (left + 5, top + 1, 6, 4), OUTLINE)
+        draw_small_front_shield(frame, left + 5, top + 1)
         return
-    fill_rect(frame, (left + 5, top + 11, 6, 4), shield_color)
-    draw_rect_outline(frame, (left + 5, top + 11, 6, 4), OUTLINE)
+    draw_small_front_shield(frame, left + 5, top + 10)
 
 
 def draw_player_sword(frame: np.ndarray, left: int, top: int, facing: str) -> None:
-    blade = HIGHLIGHT
-    hilt = CHEST_BAND
     if facing == "left":
-        fill_rect(frame, (left - 6, top + 7, 6, 2), blade)
-        fill_rect(frame, (left - 1, top + 6, 2, 4), hilt)
+        fill_rect(frame, (left - 7, top + 7, 7, 2), ITEM_GRAY)
+        fill_rect(frame, (left - 7, top + 8, 7, 1), ITEM_WHITE)
+        fill_rect(frame, (left - 1, top + 6, 2, 4), ITEM_GRAY_DARK)
         return
     if facing == "right":
-        fill_rect(frame, (left + 16, top + 7, 6, 2), blade)
-        fill_rect(frame, (left + 15, top + 6, 2, 4), hilt)
+        fill_rect(frame, (left + 16, top + 7, 7, 2), ITEM_GRAY)
+        fill_rect(frame, (left + 16, top + 8, 7, 1), ITEM_WHITE)
+        fill_rect(frame, (left + 15, top + 6, 2, 4), ITEM_GRAY_DARK)
         return
     if facing == "up":
-        fill_rect(frame, (left + 7, top - 6, 2, 6), blade)
-        fill_rect(frame, (left + 6, top - 1, 4, 2), hilt)
+        fill_rect(frame, (left + 7, top - 8, 2, 8), ITEM_GRAY)
+        fill_rect(frame, (left + 8, top - 8, 1, 8), ITEM_WHITE)
+        fill_rect(frame, (left + 5, top - 1, 6, 2), ITEM_GRAY_DARK)
         return
-    fill_rect(frame, (left + 7, top + 16, 2, 6), blade)
-    fill_rect(frame, (left + 6, top + 15, 4, 2), hilt)
+    fill_rect(frame, (left + 7, top + 16, 2, 8), ITEM_GRAY)
+    fill_rect(frame, (left + 8, top + 16, 1, 8), ITEM_WHITE)
+    fill_rect(frame, (left + 5, top + 15, 6, 2), ITEM_GRAY_DARK)
+
+
+def draw_small_front_shield(frame: np.ndarray, left: int, top: int) -> None:
+    fill_rect(frame, (left, top, 6, 1), ITEM_GRAY_DARK)
+    fill_rect(frame, (left, top + 1, 6, 1), ITEM_WHITE)
+    fill_rect(frame, (left + 1, top + 2, 4, 4), ITEM_BLUE)
+    fill_rect(frame, (left, top + 2, 1, 4), ITEM_GRAY)
+    fill_rect(frame, (left + 5, top + 2, 1, 4), ITEM_GRAY_DARK)
+    fill_rect(frame, (left + 2, top + 6, 2, 1), ITEM_GRAY_DARK)
+
+
+def draw_small_side_shield(frame: np.ndarray, left: int, top: int, *, x_offset: int) -> None:
+    fill_rect(frame, (left + x_offset, top + 5, 4, 1), ITEM_WHITE)
+    fill_rect(frame, (left + x_offset, top + 6, 4, 6), ITEM_GRAY)
+    fill_rect(frame, (left + x_offset + 1, top + 7, 2, 4), ITEM_BLUE)
+    fill_rect(frame, (left + x_offset + 3, top + 6, 1, 6), ITEM_GRAY_DARK)
+    fill_rect(frame, (left + x_offset + 1, top + 12, 2, 1), ITEM_GRAY_DARK)
 
 
 def draw_monster(
@@ -510,8 +587,8 @@ def draw_status_bar(frame: np.ndarray, player: PlayerState, *, y: int) -> None:
     draw_tool_icon(frame, 83, y + 8, player.equipped_tool_label("A"))
     draw_text(frame, "L-1", 78, y + 24, HUD_DARK, scale=1)
 
-    draw_hud_coin(frame, 112, y + 6)
-    draw_text(frame, f"{player.gold:03d}", 122, y + 22, HUD_DARK, scale=1)
+    draw_hud_coin(frame, 113, y + 6)
+    draw_text(frame, f"{player.gold:03d}", 112, y + 22, HUD_DARK, scale=1)
     draw_hud_key(frame, 140, y + 20)
     draw_text(frame, str(player.keys), 156, y + 24, HUD_DARK, scale=1)
 
@@ -533,30 +610,17 @@ def draw_item_bracket(frame: np.ndarray, left: int, top: int, width: int, height
 
 def draw_tool_icon(frame: np.ndarray, left: int, top: int, tool_name: str) -> None:
     if tool_name == "shield":
-        draw_shield_icon(frame, left, top)
+        draw_shield_icon(frame, left - 1, top - 1)
     else:
-        draw_sword_icon(frame, left, top)
+        draw_sword_icon(frame, left + 2, top - 3)
 
 
 def draw_shield_icon(frame: np.ndarray, left: int, top: int) -> None:
-    shield_mid = (114, 82, 176)
-    shield_light = (178, 154, 228)
-    fill_rect(frame, (left + 2, top, 8, 2), HUD_DARK)
-    fill_rect(frame, (left, top + 2, 12, 6), HUD_DARK)
-    fill_rect(frame, (left + 2, top + 8, 8, 3), HUD_DARK)
-    fill_rect(frame, (left + 3, top + 2, 6, 6), shield_mid)
-    fill_rect(frame, (left + 4, top + 2, 3, 2), shield_light)
-    fill_rect(frame, (left + 5, top + 4, 2, 4), HUD_DARK)
+    draw_pixel_art(frame, SHIELD_ICON, left, top, ITEM_PALETTE)
 
 
 def draw_sword_icon(frame: np.ndarray, left: int, top: int) -> None:
-    blade = (210, 216, 218)
-    fill_rect(frame, (left + 4, top, 4, 1), HUD_DARK)
-    fill_rect(frame, (left + 5, top + 1, 2, 8), blade)
-    fill_rect(frame, (left + 6, top + 1, 1, 8), HUD_PANEL)
-    fill_rect(frame, (left + 3, top + 8, 6, 2), HUD_DARK)
-    fill_rect(frame, (left + 4, top + 8, 4, 1), HIGHLIGHT)
-    fill_rect(frame, (left + 5, top + 10, 2, 3), HUD_DARK)
+    draw_pixel_art(frame, SWORD_ICON, left, top, SWORD_PALETTE)
 
 
 def draw_hud_rupee(frame: np.ndarray, left: int, top: int) -> None:
@@ -594,17 +658,41 @@ def draw_hud_key(frame: np.ndarray, left: int, top: int) -> None:
 
 def draw_hud_heart(frame: np.ndarray, left: int, top: int, *, filled: bool) -> None:
     color = HUD_HEART if filled else HUD_PANEL
-    fill_rect(frame, (left + 1, top, 2, 2), HUD_DARK)
-    fill_rect(frame, (left + 4, top, 2, 2), HUD_DARK)
-    fill_rect(frame, (left, top + 2, 7, 3), HUD_DARK)
-    fill_rect(frame, (left + 1, top + 5, 5, 1), HUD_DARK)
-    fill_rect(frame, (left + 2, top + 6, 3, 1), HUD_DARK)
-    fill_rect(frame, (left + 2, top + 1, 1, 1), color)
-    fill_rect(frame, (left + 5, top + 1, 1, 1), color)
-    fill_rect(frame, (left + 1, top + 3, 5, 2), color)
-    fill_rect(frame, (left + 2, top + 5, 3, 1), color)
+    for x_offset, y_offset in (
+        (1, 0),
+        (2, 0),
+        (4, 0),
+        (5, 0),
+        (0, 1),
+        (3, 1),
+        (6, 1),
+        (0, 2),
+        (6, 2),
+        (1, 3),
+        (5, 3),
+        (2, 4),
+        (4, 4),
+        (3, 5),
+    ):
+        fill_rect(frame, (left + x_offset, top + y_offset, 1, 1), HUD_DARK)
+    for x_offset, y_offset in (
+        (1, 1),
+        (2, 1),
+        (4, 1),
+        (5, 1),
+        (1, 2),
+        (2, 2),
+        (3, 2),
+        (4, 2),
+        (5, 2),
+        (2, 3),
+        (3, 3),
+        (4, 3),
+        (3, 4),
+    ):
+        fill_rect(frame, (left + x_offset, top + y_offset, 1, 1), color)
     if not filled:
-        fill_rect(frame, (left + 2, top + 2, 3, 2), HUD_BG)
+        fill_rect(frame, (left + 2, top + 2, 3, 1), HUD_BG)
     else:
         fill_rect(frame, (left + 2, top + 2, 2, 1), HUD_HEART_LIGHT)
 
