@@ -156,6 +156,10 @@ def can_use_exit(runtime: Any, exit_config: ExitConfig) -> tuple[bool, str]:
         return False, "missing_requirement"
     if exit_config.requires.get("all_monsters_defeated") and len(runtime.room.monsters) > 0:
         return False, "missing_requirement"
+    if "key_count" in exit_config.requires:
+        required_keys = int(exit_config.requires.get("key_count", 1))
+        if runtime.player.keys < required_keys:
+            return False, "locked"
     return True, ""
 
 

@@ -8,6 +8,7 @@ from .exploration import ExplorationReward
 from .kill_monster import KillMonsterReward
 from .loader import load_reward, load_reward_module, resolve_reward_module
 from .sparse_exit import SparseExitReward
+from .custom_template import CustomReward
 
 __all__ = [
     "BaseReward",
@@ -22,4 +23,5 @@ __all__ = [
     "load_reward",
     "load_reward_module",
     "resolve_reward_module",
+    "CustomReward",
 ]

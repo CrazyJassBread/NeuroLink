@@ -11,6 +11,7 @@ class CustomReward(BaseReward):
         "keys_delta": 5.0,
         "exit_reached": 50.0,
         "death": -20.0,
+        "monster_kill": 10.0,
     }
 
 

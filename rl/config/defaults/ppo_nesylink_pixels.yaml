@@ -1,8 +1,8 @@
 experiment:
-  name: ppo_nesylink_kill_monsters
+  name: ppo_nesylink_pixels
   seed: 0
   device: auto
-  output_dir: rl/outputs/ppo_nesylink
+  output_dir: rl/outputs/ppo_nesylink_pixels
   resume: false
 
 environment:
@@ -12,6 +12,7 @@ environment:
   action_repeat: 5
   max_episode_steps: 500
   render: false
+  observation_mode: pixels
 
 algorithm:
   name: ppo

@@ -142,4 +142,6 @@ class PPOTrainer:
 def _policy_for_env(env: gym.Env) -> tuple[str, dict]:
     if isinstance(env.observation_space, spaces.Dict):
         return "MultiInputPolicy", {"features_extractor_class": DungeonFeaturesExtractor}
+    if isinstance(env.observation_space, spaces.Box) and len(env.observation_space.shape) == 3:
+        return "CnnPolicy", {}
     return "MlpPolicy", {}

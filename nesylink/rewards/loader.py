@@ -12,6 +12,7 @@ BUILTIN_REWARD_MODULES = {
     "collect_gold": "nesylink.rewards.collect_gold",
     "kill_monster": "nesylink.rewards.kill_monster",
     "exploration": "nesylink.rewards.exploration",
+    "custom_reward": "nesylink.rewards.custom_template",
 }
 
 
