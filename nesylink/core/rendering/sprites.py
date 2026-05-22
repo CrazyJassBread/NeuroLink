@@ -34,8 +34,11 @@ KEY_COLOR = (255, 216, 80)
 COIN_COLOR = (210, 28, 96)
 HEART_COLOR = (204, 16, 72)
 HEAL_CROSS = (255, 244, 112)
-TRAP_METAL = (112, 112, 126)
-TRAP_WARNING = (255, 244, 112)
+SPIKE_BASE = (36, 82, 206)
+SPIKE_BASE_EDGE = (24, 52, 138)
+SPIKE_METAL = (238, 238, 236)
+SPIKE_SHADE = (112, 112, 126)
+SPIKE_HIGHLIGHT = (255, 255, 255)
 BUTTON_UP = (40, 190, 74)
 BUTTON_DOWN = (28, 112, 52)
 EXIT_GLOW = (255, 244, 112)
@@ -486,10 +489,13 @@ def draw_heal(frame: np.ndarray, pos: tuple[int, int]) -> None:
 
 def draw_trap(frame: np.ndarray, col: int, row: int) -> None:
     left, top, _, _ = tile_rect(col, row)
-    fill_rect(frame, (left + 2, top + 12, 12, 2), OUTLINE)
-    for spike_left in (3, 7, 11):
-        draw_triangle_up(frame, left + spike_left, top + 4, 5, 9, TRAP_METAL)
-        draw_triangle_up(frame, left + spike_left + 1, top + 7, 3, 4, TRAP_WARNING)
+    fill_rect(frame, (left + 1, top + 12, TILE_SIZE - 2, 2), SPIKE_BASE_EDGE)
+    fill_rect(frame, (left + 2, top + 12, TILE_SIZE - 4, 1), SPIKE_BASE)
+    for spike_left in (2, 5, 8, 11):
+        draw_triangle_up(frame, left + spike_left, top + 7, 3, 6, SPIKE_BASE_EDGE)
+        draw_triangle_up(frame, left + spike_left + 1, top + 8, 1, 4, SPIKE_METAL)
+        fill_rect(frame, (left + spike_left + 2, top + 10, 1, 2), SPIKE_SHADE)
+        fill_rect(frame, (left + spike_left + 1, top + 8, 1, 1), SPIKE_HIGHLIGHT)
 
 
 def draw_button(frame: np.ndarray, col: int, row: int, *, pressed: bool) -> None:
