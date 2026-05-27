@@ -26,7 +26,7 @@ class EnvironmentConfig:
     reward_id: str | None = None
     reward_module: str | None = None
     render: bool = False
-    num_envs: int = 1
+    num_envs: int = 8 # 多个游戏环境并行训练
     action_repeat: int = 1
     max_episode_steps: int | None = None
     params: dict[str, Any] = field(default_factory=dict)

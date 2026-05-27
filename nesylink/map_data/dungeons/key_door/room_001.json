@@ -3,11 +3,11 @@
   "coord": [0, 0],
   "layout": [
     "..........",
-    "########..",
     "..........",
-    "...#..#...",
+    "##..######",
     "..........",
-    "..#....#..",
+    "..........",
+    "#######...",
     "..........",
     ".........."
   ],
@@ -17,8 +17,7 @@
   },
   "default_spawn": "default",
   "objects": [
-    {"id": "chest_key", "kind": "chest", "pos": [8, 2], "loot": {"kind": "key", "key_id": "single_task_key"}},
-    {"id": "monster_guard", "kind": "monster", "pos": [6, 2], "monster_type": "patroller", "patrol_span": 32, "hp": 2, "damage": 1}
+    {"id": "chest_key", "kind": "chest", "pos": [0, 3], "loot": {"kind": "key", "key_id": "single_task_key"}}
   ],
   "exits": [
     {
@@ -29,15 +28,8 @@
       "type": "locked_key",
       "requires": {"key_count": 1, "consume_key": true},
       "blocked_message": "NEED KEY",
-      "success_message": "CLEARED!"
-    },
-    {
-      "id": "south_exit",
-      "direction": "south",
-      "target_room": "room_001",
-      "target_entry": "from_south",
-      "type": "normal",
-      "success_message": "RETRY"
+      "success_message": "CLEARED!",
+      "complete_task": true
     }
   ]
 }

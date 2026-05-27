@@ -1,0 +1,30 @@
+experiment:
+  name: ppo_kill_monsters
+  seed: 0
+  device: auto
+  output_dir: rl/outputs/ppo_kill_monsters
+  resume: false
+
+environment:
+  id: nesylink
+  map_path: nesylink/map_data/dungeons/kill_monsters/room_001.json
+  reward_id: custom_reward
+  action_repeat: 5
+  max_episode_steps: 500
+  num_envs: 8  # 可以平行运行多个游戏环境加速训练，目前的默认配置是 Dict 观测，GPU占用小
+  render: false
+
+algorithm:
+  name: ppo
+  total_timesteps: 500000
+  learning_rate: 0.0003
+  n_steps: 512
+  batch_size: 256
+
+evaluation:
+  enabled: true
+  episodes: 5
+  deterministic: true
+  save_model: true
+  save_metrics: true
+  render: false

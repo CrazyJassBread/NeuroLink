@@ -1,22 +1,23 @@
 experiment:
-  name: ppo_nesylink_pixels
+  name: ppo_key_door_pixels
   seed: 0
   device: auto
-  output_dir: rl/outputs/ppo_nesylink_pixels
+  output_dir: rl/outputs/ppo_key_door_pixels
   resume: false
 
 environment:
   id: nesylink
-  map_path: nesylink/map_data/dungeons/kill_monsters/room_001.json
-  reward_id: custom_reward
+  map_path: nesylink/map_data/dungeons/key_door/room_001.json
+  reward_id: custom_reward # TODO：当前的奖励无法完成 Key door 任务，需要重新设计
   action_repeat: 5
   max_episode_steps: 500
+  num_envs: 8  # 可以平行运行多个游戏环境加速训练
   render: false
   observation_mode: pixels
 
 algorithm:
   name: ppo
-  total_timesteps: 500000
+  total_timesteps: 300000
   learning_rate: 0.0003
   n_steps: 512
   batch_size: 256

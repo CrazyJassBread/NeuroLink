@@ -1,8 +1,8 @@
 experiment:
-  name: ppo_nesylink_kill_monsters
+  name: ppo_kill_monsters_pixels
   seed: 0
   device: auto
-  output_dir: rl/outputs/ppo_nesylink
+  output_dir: rl/outputs/ppo_kill_monsters_pixels
   resume: false
 
 environment:
@@ -11,11 +11,13 @@ environment:
   reward_id: custom_reward
   action_repeat: 5
   max_episode_steps: 500
+  num_envs: 4  # 可以平行运行多个游戏环境加速训练
   render: false
+  observation_mode: pixels
 
 algorithm:
   name: ppo
-  total_timesteps: 500000
+  total_timesteps: 300000
   learning_rate: 0.0003
   n_steps: 512
   batch_size: 256

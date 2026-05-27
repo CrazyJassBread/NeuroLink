@@ -5,7 +5,7 @@ from pathlib import Path
 import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3 import PPO
-from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 
 from rl.config.schema import TrainingConfig
 from rl.envs.registry import get_env_builder
@@ -48,7 +48,7 @@ class PPOTrainer:
                 raise FileNotFoundError(f"resume requested but model was not found: {model_path}")
             model = PPO.load(str(save_path), device=self.config.experiment.device)
         else:
-            train_env = Monitor(EpisodeKeyAdapter(self._make_env(seed=self.config.experiment.seed, render=False)))
+            train_env = self._make_train_env()
             try:
                 policy, policy_kwargs = _policy_for_env(train_env)
                 algo_kwargs = dict(self.config.algorithm.params)
@@ -83,6 +83,19 @@ class PPOTrainer:
 
     def _make_env(self, *, seed: int, render: bool) -> gym.Env:
         return self._env_builder(self.config.environment, seed=seed, render=render)
+
+    def _make_train_env(self):
+        num_envs = max(1, int(self.config.environment.num_envs))
+
+        def _init_env(rank: int):
+            def _factory():
+                return EpisodeKeyAdapter(self._make_env(seed=self.config.experiment.seed + rank, render=False))
+
+            return _factory
+
+        env_fns = [_init_env(rank) for rank in range(num_envs)]
+        vec_env_cls = SubprocVecEnv if num_envs > 1 else DummyVecEnv
+        return VecMonitor(vec_env_cls(env_fns))
 
     def _evaluate(self, model: PPO) -> list[EpisodeResult]:
         if not self.config.evaluation.enabled:

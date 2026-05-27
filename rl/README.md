@@ -3,24 +3,25 @@
 RL training is launched from the `rl/` package entrypoint:
 
 ```bash
-python rl/train.py --config rl/config/defaults/ppo_nesylink.yaml
+python rl/train.py --config rl/config/defaults/ppo_kill_monsters.yaml
 ```
 
 Run commands from the repository root so relative config paths and output paths resolve consistently.
 
 ## Quick Start
 
-Train PPO on the default NesyLink task:
+Train PPO on the default NesyLink task(kill monsters):
 
 ```bash
-python rl/train.py --config rl/config/defaults/ppo_nesylink.yaml
+python rl/train.py --config rl/config/defaults/ppo_kill_monsters.yaml
 ```
 
 Train PPO on NesyLink using native RGB pixel observations:
 
 ```bash
-python rl/train.py --config rl/config/defaults/ppo_nesylink_pixels.yaml
+python rl/train.py --config rl/config/defaults/ppo_kill_monsters_pixels.yaml
 ```
+> you can change the yaml config to use a different map, or override it from the command line with `--set environment.map_path=...`
 
 Train PPO on MiniGrid:
 
@@ -32,7 +33,7 @@ Override config values from the command line:
 
 ```bash
 python rl/train.py \
-  --config rl/config/defaults/ppo_nesylink_pixels.yaml \
+  --config rl/config/defaults/ppo_kill_monsters_pixels.yaml \
   --set algorithm.total_timesteps=100000 \
   --set experiment.seed=1
 ```
@@ -42,7 +43,7 @@ python rl/train.py \
 Training configs are YAML files under `rl/config/defaults/`. The top-level sections are:
 
 - `experiment`: run name, random seed, device, output directory, and resume behavior.
-- `environment`: environment id, map path, reward id/module, action repeat, episode length, rendering, and environment-specific parameters.
+- `environment`: environment id, map path, reward id/module, action repeat, episode length, parallel environments, rendering, and environment-specific parameters.
 - `algorithm`: algorithm name, total timesteps, and algorithm hyperparameters.
 - `evaluation`: evaluation episodes, deterministic policy flag, model saving, metrics saving, and rendering.
 
@@ -61,6 +62,32 @@ Supported NesyLink observation modes:
 
 When `observation_mode: pixels` is used, PPO automatically selects `CnnPolicy`. When the default dict observation is used, PPO selects `MultiInputPolicy` with the custom NesyLink feature extractor.
 
+## Parallel environments (num_envs)
+
+PPO supports vectorized sampling by setting `environment.num_envs`. When `num_envs` is greater than 1, training creates multiple environments in parallel (for NesyLink this uses subprocesses) to increase rollout throughput and improve GPU utilization.
+
+Example configuration:
+
+```yaml
+environment:
+  id: nesylink
+  num_envs: 8
+```
+
+You can also override it on the command line:
+
+```bash
+python rl/train.py \
+  --config rl/config/defaults/ppo_nesylink.yaml \
+  --set environment.num_envs=8
+```
+
+Notes:
+
+- Keep `algorithm.batch_size <= algorithm.n_steps * environment.num_envs`.
+- If GPU utilization is still low, increase `algorithm.n_steps` and `algorithm.batch_size` together after raising `num_envs`.
+- Higher `num_envs` increases CPU usage; scale up gradually to avoid CPU bottlenecks.
+
 ## Common Commands
 
 Short smoke run without evaluation:
@@ -76,24 +103,54 @@ Train on a different NesyLink map:
 
 ```bash
 python rl/train.py \
-  --config rl/config/defaults/ppo_nesylink_pixels.yaml \
-  --set environment.map_path=nesylink/map_data/dungeons/kill_monsters/room_002.json
+  --config rl/config/defaults/ppo_kill_monsters_pixels.yaml \
+  --set environment.map_path=nesylink/map_data/dungeons/kill_monsters/room_001.json
 ```
 
 Change the output directory:
 
 ```bash
 python rl/train.py \
-  --config rl/config/defaults/ppo_nesylink_pixels.yaml \
-  --set experiment.output_dir=rl/outputs/ppo_nesylink_pixels_room_002
+  --config rl/config/defaults/ppo_kill_monsters_pixels.yaml \
+  --set experiment.output_dir=rl/outputs/ppo_kill_monsters_pixels_room_001
 ```
 
 Resume from an existing saved model:
 
 ```bash
 python rl/train.py \
-  --config rl/config/defaults/ppo_nesylink_pixels.yaml \
+  --config rl/config/defaults/ppo_kill_monsters_pixels.yaml \
   --set experiment.resume=true
+```
+
+## Evaluation (rl/eval.py)
+
+Use `rl/eval.py` to run evaluation rollouts for a trained PPO model and export GIFs.
+
+Basic usage (uses the config output directory and model path):
+
+```bash
+python rl/eval.py --config rl/config/defaults/ppo_kill_monsters.yaml
+```
+
+Override evaluation settings and save metrics:
+
+```bash
+python rl/eval.py \
+  --config rl/config/defaults/ppo_kill_monsters.yaml \
+  --episodes 3 \
+  --fps 12 \
+  --deterministic \
+  --save-metrics
+```
+
+Evaluate a specific model and export GIFs to a custom path:
+
+```bash
+python rl/eval.py \
+  --config rl/config/defaults/ppo_kill_monsters.yaml \
+  --model rl/outputs/ppo_kill_monsters/model.zip \
+  --output rl/outputs/ppo_kill_monsters/eval.gif
 ```
 
 ## Outputs
